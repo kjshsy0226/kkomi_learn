@@ -1,0 +1,199 @@
+# ──────────────────────────────
+# OS / Misc
+# ──────────────────────────────
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+Thumbs.db
+ehthumbs.db
+Icon?
+Desktop.ini
+
+# ──────────────────────────────
+# IntelliJ / Android Studio
+# ──────────────────────────────
+*.iml
+*.ipr
+*.iws
+.idea/
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/dictionaries
+.idea/**/shelf/
+.idea/**/httpRequests/
+
+# ──────────────────────────────
+# VSCode
+# ──────────────────────────────
+.vscode/
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
+
+# ──────────────────────────────
+# Flutter / Dart / Pub
+# ──────────────────────────────
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+/coverage/
+.melos_tool/
+.flutter-versions
+
+# ──────────────────────────────
+# Web / Generated files
+# ──────────────────────────────
+/web/.dart_tool/
+/web/build/
+/web/generated/
+/web/.firebase/
+build/web/
+/firebase.json
+
+# ──────────────────────────────
+# Android
+# ──────────────────────────────
+/android/.gradle/
+/android/captures/
+/android/local.properties
+/android/app/debug
+/android/app/profile
+/android/app/release
+/android/key.properties
+/android/app/google-services.json
+/android/app/google-services.plist
+/android/.idea/
+/android/gradle-wrapper.jar
+/android/gradle.properties
+
+# ──────────────────────────────
+# iOS / Xcode
+# ──────────────────────────────
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/ServiceDefinitions.json
+**/ios/.generated/
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/ios/Runner.xcworkspace/
+**/ios/build/
+**/ios/.flutter-plugins
+**/ios/Flutter/App.framework
+**/ios/Flutter/ephemeral/
+**/ios/Flutter/App.xcframework
+**/ios/Flutter/engine/
+**/ios/Flutter/ios_engine/
+
+# Derived data
+**/ios/DerivedData/
+**/ios/*.xcuserstate
+**/ios/*.moved-aside
+**/ios/xcuserdata/
+**/ios/Flutter/Flutter.podspec.json
+
+# ──────────────────────────────
+# macOS
+# ──────────────────────────────
+**/macos/Flutter/ephemeral/
+**/macos/Pods/
+**/macos/build/
+**/macos/DerivedData/
+**/macos/xcuserdata/
+**/macos/Runner.xcworkspace/
+
+# ──────────────────────────────
+# Windows
+# ──────────────────────────────
+**/windows/flutter/ephemeral/
+**/windows/build/
+**/windows/DerivedData/
+
+# ──────────────────────────────
+# WebAssembly / FFI / wasm
+# ──────────────────────────────
+**/wasm_build/
+**/out/
+**/dist/
+
+# ──────────────────────────────
+# Symbolication / Obfuscation
+# ──────────────────────────────
+app.*.symbols
+app.*.map.json
+
+# ──────────────────────────────
+# Fastlane / Firebase / Crashlytics
+# ──────────────────────────────
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/README.md
+firebase-debug.log
+google-services.json
+GoogleService-Info.plist
+.crashlytics/
+.crashlytics-build.properties
+
+# ──────────────────────────────
+# Environment / Credentials
+# ──────────────────────────────
+.env
+.env.*
+*.keystore
+*.jks
+*.p12
+*.pem
+*.key
+*.mobileprovision
+*.cer
+*.der
+*.crt
+
+# ──────────────────────────────
+# Custom Generated Assets
+# ──────────────────────────────
+assets/generated/
+assets/temp/
+assets/cache/
+assets/sprites/
+assets/preview/
+
+# ──────────────────────────────
+# Node / Web tools
+# ──────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+pnpm-lock.yaml
+
+# ──────────────────────────────
+# Misc Project files
+# ──────────────────────────────
+*.lock
+*.bak
+*.tmp
+*.orig
+*.rej
+*.swp
+*.swo

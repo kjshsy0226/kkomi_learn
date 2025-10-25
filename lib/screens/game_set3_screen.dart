@@ -22,18 +22,21 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
   static const double controllerTopPx = 35;
   static const double controllerRightPx = 40;
 
+  // 입장 애니메이션: 시작 top-left 좌표(1920×1080 기준)
+  static const Offset kEnterStartTopLeft = Offset(640, 540);
+
   // ── 세트 구성(고정 순서) ──────────────────────────────────────────────
   final List<LearnFruit> _fruits = const [
+    LearnFruit.eggplant,
     LearnFruit.paprika,
     LearnFruit.watermelon,
     LearnFruit.tomato,
     LearnFruit.pumpkin,
-    LearnFruit.radish,
     LearnFruit.kiwi,
     LearnFruit.grape,
     LearnFruit.pineapple,
     LearnFruit.strawberry,
-    LearnFruit.eggplant,
+    LearnFruit.radish,
   ];
 
   String _keyOf(LearnFruit f) => kLearnFruitMeta[f]!.key;
@@ -43,19 +46,33 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
   final String _standing =
       'assets/videos/reactions/game/set3/standing_loop.mp4';
 
-  // ── 슬롯 좌표(고정 배치; 필요시 실제 좌표로 교체) ─────────────────────
+  // ── 슬롯 좌표(고정 배치, "좌상단" 기준) ─────────────────────────────────
   static const List<Offset> kSet3Slots = <Offset>[
-    Offset(720.0, 160.0),
-    Offset(930.0, 210.0),
-    Offset(1065.0, 360.0),
-    Offset(1110.0, 560.0),
-    Offset(1045.0, 760.0),
-    Offset(880.0, 900.0),
-    Offset(660.0, 920.0),
-    Offset(480.0, 800.0),
-    Offset(420.0, 600.0),
-    Offset(470.0, 380.0),
+    Offset(41.80, 372.75), // 가지
+    Offset(291.50, 103.10), // 파프리카
+    Offset(559.35, 81.25), // 수박
+    Offset(973.95, 118.00), // 토마토
+    Offset(1017.40, 389.50), // 호박
+    Offset(983.45, 799.60), // 키위
+    Offset(680.45, 824.65), // 포도
+    Offset(222.75, 717.50), // 파인애플
+    Offset(371.90, 477.85), // 딸기
+    Offset(669.05, 457.75), // 무
   ];
+
+  // 🔹 개별 과일 사이즈 매핑(1920×1080 기준 px) — w × h
+  static const Map<LearnFruit, Size> kSet3FruitSizeBase = {
+    LearnFruit.eggplant: Size(105, 297), // 가지
+    LearnFruit.grape: Size(161, 218), // 포도
+    LearnFruit.kiwi: Size(142, 134), // 키위
+    LearnFruit.paprika: Size(170, 190), // 파프리카
+    LearnFruit.pineapple: Size(208, 279), // 파인애플
+    LearnFruit.pumpkin: Size(269, 256), // 호박
+    LearnFruit.radish: Size(246, 293), // 무
+    LearnFruit.strawberry: Size(124, 105), // 딸기
+    LearnFruit.tomato: Size(173, 144), // 토마토
+    LearnFruit.watermelon: Size(280, 309), // 수박
+  };
 
   // ── 상태 ─────────────────────────────────────────────────────────────
   late final List<bool> _eaten; // 각 슬롯 소거 여부
@@ -66,6 +83,12 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
   // 비디오 플레이어 (스탠딩 루프 + 먹기 1회성)
   late final VideoPlayerController _standingCtrl;
   VideoPlayerController? _eatCtrl;
+
+  // 입장 애니메이션(스태거)
+  late final AnimationController _enterCtrl;
+
+  // 위/아래 보빙(둥실둥실)
+  late final AnimationController _bobCtrl;
 
   @override
   void initState() {
@@ -84,6 +107,16 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
         _standingCtrl.play();
         setState(() {});
       });
+
+    _enterCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..forward();
+
+    _bobCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
   }
 
   @override
@@ -91,6 +124,8 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
     _eatCtrl?.removeListener(_onEatTick);
     _eatCtrl?.dispose();
     _standingCtrl.dispose();
+    _enterCtrl.dispose();
+    _bobCtrl.dispose();
     super.dispose();
   }
 
@@ -104,19 +139,23 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
       if (_eatCtrl!.value.isPlaying) {
         _eatCtrl!.pause();
         _standingCtrl.pause();
+        _bobCtrl.stop(canceled: false);
         setState(() => _paused = true);
       } else {
         _eatCtrl!.play();
         if (!_standingCtrl.value.isPlaying) _standingCtrl.play();
+        if (!_bobCtrl.isAnimating) _bobCtrl.repeat();
         setState(() => _paused = false);
       }
     } else {
       if (_standingCtrl.value.isInitialized) {
         if (_standingCtrl.value.isPlaying) {
           _standingCtrl.pause();
+          _bobCtrl.stop(canceled: false);
           setState(() => _paused = true);
         } else {
           _standingCtrl.play();
+          if (!_bobCtrl.isAnimating) _bobCtrl.repeat();
           setState(() => _paused = false);
         }
       }
@@ -318,10 +357,12 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
                     ),
                   ),
 
-                // 3) 과일(고정 슬롯) — 먹기 중에는 입력 잠시 막기
+                // 3) 과일(좌상단 기준, 개별 사이즈) — 먹기 중 입력 잠금
                 AbsorbPointer(
                   absorbing: _playingIndex != null,
-                  child: Stack(children: _buildFixedFruits(scale)),
+                  child: Stack(
+                    children: _buildFixedFruits(scale, leftPad, topPad),
+                  ),
                 ),
 
                 // 4) 재생 중 스킵용 투명 오버레이(컨트롤러 아래/과일 위)
@@ -360,31 +401,83 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
     );
   }
 
-  List<Widget> _buildFixedFruits(double scale) {
-    const double itemSize = 160;
+  // ── 좌상단 기준 배치 + 입장(0→1) + (위/아래) 보빙 ───────────────────────
+  List<Widget> _buildFixedFruits(double scale, double leftPad, double topPad) {
+    double lerpD(double a, double b, double t) => a + (b - a) * t;
+
+    // 입장 스태거
+    Animation<double> staggerAnimFor(
+      int i, {
+      double span = 0.55,
+      double gap = 0.06,
+    }) {
+      final start = (i * gap).clamp(0.0, 1.0);
+      final end = (start + span).clamp(0.0, 1.0);
+      return CurvedAnimation(
+        parent: _enterCtrl,
+        curve: Interval(start, end, curve: Curves.easeOutCubic),
+      );
+    }
 
     final widgets = <Widget>[];
     for (int i = 0; i < _fruits.length; i++) {
       if (_eaten[i]) continue;
 
-      final slot = kSet3Slots[i];
+      final fruit = _fruits[i];
+      final targetBase = kSet3Slots[i];
+
+      // 과일별 사이즈(스케일 반영)
+      final Size baseSize = kSet3FruitSizeBase[fruit] ?? const Size(160, 160);
+      final double itemW = baseSize.width * scale;
+      final double itemH = baseSize.height * scale;
+
+      final enterAnim = staggerAnimFor(i);
+      final opacityAnim = CurvedAnimation(
+        parent: _enterCtrl,
+        curve: Interval((i * 0.06).clamp(0.0, 1.0), 1.0, curve: Curves.easeIn),
+      );
+
+      // 보빙 파라미터
+      final double ampPx = 6.0 * scale; // 위/아래 진폭
+      final double phase = i * pi * 0.8; // 과일별 위상 차
+
       widgets.add(
-        Positioned(
-          left: (slot.dx - itemSize / 2) * scale,
-          top: (slot.dy - itemSize / 2) * scale,
-          width: itemSize * scale,
-          height: itemSize * scale,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => _playEatByIndex(i),
-            child: Image.asset(
-              _pngOf(_fruits[i]),
-              fit: BoxFit.contain,
-              errorBuilder:
-                  (BuildContext context, Object error, StackTrace? stack) =>
-                      const SizedBox.shrink(),
-            ),
-          ),
+        AnimatedBuilder(
+          animation: Listenable.merge([_enterCtrl, _bobCtrl]),
+          builder: (context, _) {
+            final t = enterAnim.value;
+
+            // 입장 보간(좌상단 기준)
+            final xBase = lerpD(kEnterStartTopLeft.dx, targetBase.dx, t);
+            final yBase = lerpD(kEnterStartTopLeft.dy, targetBase.dy, t);
+
+            // 보빙(위/아래만)
+            final double theta = (_bobCtrl.value * 2 * pi) + phase;
+            final double dy = sin(theta) * ampPx;
+
+            final double left = leftPad + xBase * scale;
+            final double top = topPad + yBase * scale + dy;
+
+            return Positioned(
+              left: left,
+              top: top,
+              width: itemW,
+              height: itemH,
+              child: Opacity(
+                opacity: opacityAnim.value, // 0 → 1
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _playEatByIndex(i),
+                  child: Image.asset(
+                    _pngOf(fruit),
+                    fit: BoxFit.fill, // PNG 실제 박스에 맞춤 (여백 있으면 contain 추천)
+                    errorBuilder: (context, error, stack) =>
+                        const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       );
     }

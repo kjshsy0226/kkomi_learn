@@ -22,6 +22,9 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
   static const double controllerTopPx = 35;
   static const double controllerRightPx = 40;
 
+  // 입장 애니메이션: 시작 top-left 좌표(1920×1080 기준)
+  static const Offset kEnterStartTopLeft = Offset(640, 540);
+
   // ── 세트 구성(고정 순서) ──────────────────────────────────────────────
   final List<LearnFruit> _fruits = const [
     LearnFruit.apple,
@@ -36,6 +39,7 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     LearnFruit.peach,
   ];
 
+  // 🔹 과일 PNG 경로/키
   String _keyOf(LearnFruit f) => kLearnFruitMeta[f]!.key;
   String _pngOf(LearnFruit f) => 'assets/images/fruits/game/${_keyOf(f)}.png';
   String _eatOf(LearnFruit f) =>
@@ -43,19 +47,33 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
   final String _standing =
       'assets/videos/reactions/game/set2/standing_loop.mp4';
 
-  // ── 슬롯 좌표(고정 배치) ──────────────────────────────────────────────
+  // ── 슬롯 좌표(고정 배치, "좌상단" 기준) ─────────────────────────────────
   static const List<Offset> kSet2Slots = <Offset>[
-    Offset(680.0, 180.0),
-    Offset(892.4, 225.9),
-    Offset(1037.8, 371.3),
-    Offset(1083.7, 583.7),
-    Offset(1019.6, 786.9),
-    Offset(860.0, 930.0),
-    Offset(640.0, 900.0),
-    Offset(460.4, 786.9),
-    Offset(396.3, 583.7),
-    Offset(442.2, 371.3),
+    Offset(236.15, 124.80), // 사과
+    Offset(583.45, 109.05), // 배추
+    Offset(1021.40, 162.95), // 양파
+    Offset(1139.45, 384.15), // 오이
+    Offset(967.75, 835.50), // 귤
+    Offset(603.95, 702.85), // 시금치
+    Offset(298.85, 798.20), // 참외
+    Offset(201.25, 560.85), // 당근
+    Offset(389.75, 421.55), // 바나나
+    Offset(880.90, 451.55), // 복숭아
   ];
+
+  // 🔹 개별 과일 사이즈 매핑(1920×1080 기준 px)
+  static const Map<LearnFruit, Size> kSet2FruitSizeBase = {
+    LearnFruit.apple: Size(149, 146),
+    LearnFruit.banana: Size(199, 200),
+    LearnFruit.carrot: Size(132, 193),
+    LearnFruit.cucumber: Size(199, 347),
+    LearnFruit.napaCabbage: Size(264, 282),
+    LearnFruit.onion: Size(159, 193),
+    LearnFruit.orientalMelon: Size(158, 181),
+    LearnFruit.peach: Size(161, 170),
+    LearnFruit.spinach: Size(197, 245),
+    LearnFruit.tangerine: Size(185, 144),
+  };
 
   // ── 상태 ─────────────────────────────────────────────────────────────
   late final List<bool> _eaten; // 각 슬롯이 사라졌는가
@@ -66,6 +84,12 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
   // 비디오 플레이어 (스탠딩 루프 + 먹기 1회성)
   late final VideoPlayerController _standingCtrl;
   VideoPlayerController? _eatCtrl;
+
+  // 입장 애니메이션(공용, Interval로 스태거)
+  late final AnimationController _enterCtrl;
+
+  // 🔹 보빙(둥실둥실) 애니메이션: 위/아래만
+  late final AnimationController _bobCtrl;
 
   @override
   void initState() {
@@ -84,6 +108,17 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
         _standingCtrl.play();
         setState(() {});
       });
+
+    _enterCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..forward();
+
+    // 보빙: 2.2초 주기의 위/아래만
+    _bobCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat();
   }
 
   @override
@@ -91,13 +126,13 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     _eatCtrl?.removeListener(_onEatTick);
     _eatCtrl?.dispose();
     _standingCtrl.dispose();
+    _enterCtrl.dispose();
+    _bobCtrl.dispose();
     super.dispose();
   }
 
-  // ── 유틸: 전부 먹었는지 ────────────────────────────────────────────────
   bool get _allCleared => _eaten.every((e) => e);
 
-  // ── 재생 제어 ─────────────────────────────────────────────────────────
   void _togglePause() {
     if (_playingIndex != null &&
         _eatCtrl != null &&
@@ -105,40 +140,43 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
       if (_eatCtrl!.value.isPlaying) {
         _eatCtrl!.pause();
         _standingCtrl.pause();
+        _bobCtrl.stop(canceled: false); // 보빙 멈춤
         setState(() => _paused = true);
       } else {
         _eatCtrl!.play();
         if (!_standingCtrl.value.isPlaying) _standingCtrl.play();
+        if (!_bobCtrl.isAnimating) _bobCtrl.repeat(); // 보빙 재개
         setState(() => _paused = false);
       }
     } else {
       if (_standingCtrl.value.isInitialized) {
         if (_standingCtrl.value.isPlaying) {
           _standingCtrl.pause();
+          _bobCtrl.stop(canceled: false);
           setState(() => _paused = true);
         } else {
           _standingCtrl.play();
+          if (!_bobCtrl.isAnimating) _bobCtrl.repeat();
           setState(() => _paused = false);
         }
       }
     }
   }
 
-  // 먹기 영상 자연 종료 감지 → 공통 완료 처리
   void _onEatTick() {
     final v = _eatCtrl!.value;
     if (v.hasError) return;
     if (v.isInitialized && !v.isPlaying && v.position >= v.duration) {
-      _finishEat(); // await 불필요 (listener)
+      _finishEat();
     }
   }
 
   Future<void> _playEatByIndex(int idx) async {
-    if (_playingIndex != null) return; // 이미 재생 중 막기
-    if (_eaten[idx]) return; // 이미 먹은 슬롯
+    if (_playingIndex != null) return;
+    if (_eaten[idx]) return;
 
     setState(() {
-      _playingIndex = idx; // 과일 입력 잠금(AbsorbPointer 작동) + 오버레이 표시
+      _playingIndex = idx;
     });
 
     _eatCtrl?.removeListener(_onEatTick);
@@ -154,16 +192,14 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     setState(() => _paused = false);
   }
 
-  // ── 완료 처리(스킵/자연 종료 공통) ────────────────────────────────────
   Future<void> _finishEat() async {
-    // 모든 상태 변경을 setState 블록 안에서 처리 → 오버레이 즉시 해제 보장
     setState(() {
       _eatCtrl?.removeListener(_onEatTick);
       _eatCtrl?.dispose();
       _eatCtrl = null;
 
       final idx = _playingIndex;
-      _playingIndex = null; // ← 오버레이 해제 트리거
+      _playingIndex = null;
 
       if (idx != null && !_eaten[idx]) {
         _eaten[idx] = true;
@@ -172,7 +208,6 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     });
 
     if (_allCleared) {
-      // GameSet3로 'push'하고, 돌아올 때 popOne 신호 받으면 마지막 과일 롤백
       final result = await Navigator.of(context).push(
         PageRouteBuilder(
           pageBuilder: (c, a, b) => const GameSet3Screen(),
@@ -191,13 +226,11 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     }
   }
 
-  // ── 스킵: 재생 중이면 즉시 완료 처리 ──────────────────────────────────
   Future<void> _skipOrFinishCurrentEat() async {
     if (_playingIndex == null || _eatCtrl == null) return;
     await _finishEat();
   }
 
-  // ── 랜덤으로 다음 과일 먹기 시작 ─────────────────────────────────────
   void _playRandomRemaining() {
     final remainingIdx = <int>[];
     for (int i = 0; i < _eaten.length; i++) {
@@ -208,19 +241,17 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     _playEatByIndex(idx);
   }
 
-  // ── 컨트롤러: 홈/이전/다음 ────────────────────────────────────────────
   void _goHome() {
     Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
   void _goPrev() {
-    // 먹기 재생 중이면 취소(되돌리기 우선) — 취소는 ‘먹음’ 처리 없이 복귀
     if (_playingIndex != null) {
       setState(() {
         _eatCtrl?.removeListener(_onEatTick);
         _eatCtrl?.dispose();
         _eatCtrl = null;
-        _playingIndex = null; // 오버레이 즉시 제거
+        _playingIndex = null;
       });
     }
 
@@ -236,7 +267,6 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
       return;
     }
 
-    // 마지막에 먹은 슬롯 되돌리기
     final lastIdx = _history.removeLast();
     setState(() {
       _eaten[lastIdx] = false;
@@ -245,7 +275,6 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
 
   Future<void> _goNext() async {
     if (_allCleared) {
-      // 모두 먹음 상태에서 다음 → GameSet3로 동일 로직 (finishEat()와 동일)
       final result = await Navigator.of(context).push(
         PageRouteBuilder(
           pageBuilder: (c, a, b) => const GameSet3Screen(),
@@ -265,19 +294,15 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     }
 
     if (_playingIndex != null) {
-      // ✅ 재생 중이면: 스킵 + 다음 과일 즉시 먹기 시작
       await _finishEat();
       if (mounted && !_allCleared && _playingIndex == null) {
         _playRandomRemaining();
       }
       return;
     }
-
-    // ✅ 스탠바이면: 바로 랜덤 먹기 시작
     _playRandomRemaining();
   }
 
-  // ── 스케일 계산 ──────────────────────────────────────────────────────
   double _calcScale(Size screen) =>
       min(screen.width / baseW, screen.height / baseH);
 
@@ -302,7 +327,7 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
             height: canvasH,
             child: Stack(
               children: [
-                // 1) 스탠딩 루프 (배경, 터치 패스)
+                // 1) 스탠딩 루프
                 if (_standingCtrl.value.isInitialized)
                   Positioned.fill(
                     child: IgnorePointer(
@@ -322,7 +347,7 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
                     child: Center(child: CircularProgressIndicator()),
                   ),
 
-                // 2) 먹기 영상(있으면 최상단 오버레이, 터치 패스)
+                // 2) 먹기 영상 오버레이
                 if (_playingIndex != null &&
                     _eatCtrl != null &&
                     _eatCtrl!.value.isInitialized)
@@ -340,23 +365,25 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
                     ),
                   ),
 
-                // 3) 과일(고정 슬롯) — 먹기 중에는 입력 잠시 막기(버그 방지)
+                // 3) 과일(좌상단 기준) — 입장 + 위/아래 보빙
                 AbsorbPointer(
-                  absorbing: _playingIndex != null, // 재생 중 과일 입력 잠금
-                  child: Stack(children: _buildFixedFruits(scale)),
+                  absorbing: _playingIndex != null,
+                  child: Stack(
+                    children: _buildFixedFruits(scale, leftPad, topPad),
+                  ),
                 ),
 
-                // 4) 재생 중 스킵용 투명 오버레이 버튼(컨트롤러 아래/과일 위)
+                // 4) 재생 중 스킵 투명 레이어
                 if (_playingIndex != null)
                   Positioned.fill(
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: _skipOrFinishCurrentEat, // 탭으로 즉시 스킵 → 스탠바이
-                      child: const SizedBox.expand(), // 완전 투명
+                      onTap: _skipOrFinishCurrentEat,
+                      child: const SizedBox.expand(),
                     ),
                   ),
 
-                // 5) 컨트롤러 (최상단)
+                // 5) 컨트롤러
                 Positioned(
                   top: controllerTopPx * scale,
                   right: controllerRightPx * scale,
@@ -367,7 +394,7 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
                       isPaused: _paused,
                       onHome: _goHome,
                       onPrev: _goPrev,
-                      onNext: _goNext, // 재생 중: 스킵+다음 먹기 / 스탠바이: 랜덤 먹기
+                      onNext: _goNext,
                       onPauseToggle: _togglePause,
                     ),
                   ),
@@ -380,31 +407,83 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     );
   }
 
-  List<Widget> _buildFixedFruits(double scale) {
-    const double itemSize = 160;
+  // ── 좌상단 기준 배치 + 입장 + (위/아래) 보빙 ────────────────────────────
+  List<Widget> _buildFixedFruits(double scale, double leftPad, double topPad) {
+    double lerpD(double a, double b, double t) => a + (b - a) * t;
+
+    // 입장 스태거
+    Animation<double> staggerAnimFor(
+      int i, {
+      double span = 0.55,
+      double gap = 0.06,
+    }) {
+      final start = (i * gap).clamp(0.0, 1.0);
+      final end = (start + span).clamp(0.0, 1.0);
+      return CurvedAnimation(
+        parent: _enterCtrl,
+        curve: Interval(start, end, curve: Curves.easeOutCubic),
+      );
+    }
 
     final widgets = <Widget>[];
     for (int i = 0; i < _fruits.length; i++) {
       if (_eaten[i]) continue;
 
-      final slot = kSet2Slots[i];
+      final fruit = _fruits[i];
+      final targetBase = kSet2Slots[i];
+
+      // 🔹 과일별 사이즈(스케일 반영)
+      final Size baseSize = kSet2FruitSizeBase[fruit] ?? const Size(160, 160);
+      final double itemW = baseSize.width * scale;
+      final double itemH = baseSize.height * scale;
+
+      final enterAnim = staggerAnimFor(i);
+      final opacityAnim = CurvedAnimation(
+        parent: _enterCtrl,
+        curve: Interval((i * 0.06).clamp(0.0, 1.0), 1.0, curve: Curves.easeIn),
+      );
+
+      // 🔹 보빙 파라미터
+      final double ampPx = 6.0 * scale; // 위/아래 진폭
+      final double phase = i * pi * 0.8; // 과일별 위상 차
+
       widgets.add(
-        Positioned(
-          left: (slot.dx - itemSize / 2) * scale,
-          top: (slot.dy - itemSize / 2) * scale,
-          width: itemSize * scale,
-          height: itemSize * scale,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque, // 터치 영역 보장
-            onTap: () => _playEatByIndex(i),
-            child: Image.asset(
-              _pngOf(_fruits[i]),
-              fit: BoxFit.contain,
-              errorBuilder:
-                  (BuildContext context, Object error, StackTrace? stack) =>
-                      const SizedBox.shrink(),
-            ),
-          ),
+        AnimatedBuilder(
+          animation: Listenable.merge([_enterCtrl, _bobCtrl]),
+          builder: (context, _) {
+            final t = enterAnim.value;
+
+            // 입장 보간(좌상단 기준)
+            final xBase = lerpD(kEnterStartTopLeft.dx, targetBase.dx, t);
+            final yBase = lerpD(kEnterStartTopLeft.dy, targetBase.dy, t);
+
+            // 보빙(위/아래만)
+            final double theta = (_bobCtrl.value * 2 * pi) + phase;
+            final double dy = sin(theta) * ampPx;
+
+            final left = leftPad + xBase * scale;
+            final top = topPad + yBase * scale + dy;
+
+            return Positioned(
+              left: left,
+              top: top,
+              width: itemW,
+              height: itemH,
+              child: Opacity(
+                opacity: opacityAnim.value,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _playEatByIndex(i),
+                  child: Image.asset(
+                    _pngOf(fruit),
+                    fit: BoxFit.fill, // 개별 PNG 실제 캔버스 크기에 딱 맞춤
+                    errorBuilder: (context, error, stack) =>
+                        const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       );
     }

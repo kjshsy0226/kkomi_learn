@@ -1,11 +1,12 @@
+// lib/screens/game_set2_screen.dart
 import 'dart:async'; // unawaited
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
-import 'package:audioplayers/audioplayers.dart';
 
 import '../models/learn_fruit.dart';
 import '../widgets/game_controller_bar.dart';
+import '../utils/sfx_pool.dart'; // ✅ SFX 풀
 import 'learn_set3_screen.dart';
 import 'game_set3_screen.dart';
 
@@ -103,6 +104,9 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
 
     _eaten = List<bool>.filled(_fruits.length, false);
 
+    // 🔊 SFX 미리 로드(첫 탭 누락 방지)
+    SfxPool.I.ensureLoaded();
+
     _standingCtrl = VideoPlayerController.asset(_standing)
       ..setLooping(true)
       ..initialize().then((_) {
@@ -130,6 +134,8 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     _standingCtrl.dispose();
     _enterCtrl.dispose();
     _bobCtrl.dispose();
+    // 앱 전역에서 SfxPool 계속 쓸 거면 dispose 생략 권장
+    // await SfxPool.I.dispose();
     super.dispose();
   }
 
@@ -381,29 +387,9 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () async {
-                        // 🔊 버튼 효과음 (저지연)
-                        final tapPlayer = AudioPlayer()
-                          ..setPlayerMode(PlayerMode.lowLatency)
-                          ..setReleaseMode(ReleaseMode.stop)
-                          ..setVolume(0.9);
-
-                        unawaited(
-                          tapPlayer.play(AssetSource('audio/sfx/btn_tap.mp3')),
-                        );
-
-                        // 🎬 짧은 대기 후 스킵 처리
+                        await SfxPool.I.tap(); // 🔊
                         await Future.delayed(const Duration(milliseconds: 150));
                         await _skipOrFinishCurrentEat();
-
-                        // 💨 플레이어 정리 (느슨하게)
-                        Future.delayed(
-                          const Duration(milliseconds: 500),
-                          () async {
-                            try {
-                              await tapPlayer.dispose();
-                            } catch (_) {}
-                          },
-                        );
                       },
                       child: const SizedBox.expand(),
                     ),
@@ -500,27 +486,13 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () async {
-                    // ✅ 과일 클릭 시 효과음 + 짧은 대기 후 실행
-                    final tapPlayer = AudioPlayer()
-                      ..setPlayerMode(PlayerMode.lowLatency)
-                      ..setReleaseMode(ReleaseMode.stop)
-                      ..setVolume(0.9);
-                    unawaited(
-                      tapPlayer.play(AssetSource('audio/sfx/btn_tap.mp3')),
-                    );
-
+                    await SfxPool.I.tap(); // 🔊
                     await Future.delayed(const Duration(milliseconds: 150));
                     _playEatByIndex(i);
-
-                    Future.delayed(const Duration(milliseconds: 500), () async {
-                      try {
-                        await tapPlayer.dispose();
-                      } catch (_) {}
-                    });
                   },
                   child: Image.asset(
                     _pngOf(fruit),
-                    fit: BoxFit.fill,
+                    fit: BoxFit.fill, // 개별 PNG 실제 캔버스 크기에 딱 맞춤
                     errorBuilder: (context, error, stack) =>
                         const SizedBox.shrink(),
                   ),

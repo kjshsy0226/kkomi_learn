@@ -67,7 +67,7 @@ flutter:
     - assets/
     - assets/audio/
     - assets/audio/bgm/
-    - assets/audio/sfx/
+    - assets/audio/sfx/btn_tap.mp3
     - assets/images/
     - assets/images/effects/
     - assets/images/effects/shine_seq/

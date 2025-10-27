@@ -1,15 +1,15 @@
 // lib/screens/learn_set2_screen.dart
 import 'dart:io' show Platform;
-import 'dart:async'; // unawaited ✅ 사운드 fire-and-forget에 필요
+// import 'dart:async'; // 더 이상 unawaited 안 씀: 필요 없으면 주석/삭제
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
-import 'package:audioplayers/audioplayers.dart'; // ✅ 추가: 버튼 효과음
 
-import '../widgets/game_controller_bar.dart'; // ✅ 컨트롤러
-import 'game_set1_screen.dart'; // ✅ 이전 화면
-import 'learn_set3_screen.dart'; // ✅ 다음 화면
+import '../core/global_sfx.dart'; // ✅ 전역 SFX
+import '../widgets/game_controller_bar.dart';
+import 'game_set1_screen.dart';
+import 'learn_set3_screen.dart';
 
 class LearnSet2Screen extends StatefulWidget {
   const LearnSet2Screen({
@@ -17,7 +17,6 @@ class LearnSet2Screen extends StatefulWidget {
     this.videoPath = 'assets/videos/scene/set2_scene.mp4',
   });
 
-  /// 재생할 두 번째 학습영상 경로 (배경 포함 1920x1080 권장)
   final String videoPath;
 
   @override
@@ -26,7 +25,6 @@ class LearnSet2Screen extends StatefulWidget {
 
 class _LearnSet2ScreenState extends State<LearnSet2Screen>
     with SingleTickerProviderStateMixin {
-  // ── 기준 캔버스(1920×1080) & 컨트롤러 위치 ─────────────────────────────
   static const double baseW = 1920;
   static const double baseH = 1080;
   static const double controllerTopPx = 35;
@@ -38,11 +36,10 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
   bool _inited = false;
   String? _error;
   bool _ended = false;
-  bool _paused = false; // 컨트롤러 표시 상태
+  bool _paused = false;
 
-  // 끝화면(꼬미 아웃라인) 깜빡이(Opacity) 애니메이션
   late final AnimationController _cueCtrl;
-  late final Animation<double> _cueOpacity; // 0↔1 왕복 반복
+  late final Animation<double> _cueOpacity;
 
   @override
   void initState() {
@@ -66,7 +63,6 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
       await _c.initialize();
       if (!mounted) return;
 
-      // 첫 프레임 보장
       await _c.play();
       await _c.pause();
 
@@ -75,7 +71,6 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
         _paused = false;
       });
 
-      // 자동 재생
       await _c.play();
     } catch (e) {
       if (!mounted) return;
@@ -91,21 +86,17 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
     if (v.hasError && _error == null) {
       setState(() => _error = v.errorDescription ?? 'Video error');
     }
-    // 영상 끝 감지
     if (v.isInitialized && !v.isPlaying && v.position >= v.duration) {
       if (!_ended) {
         _ended = true;
         _c.pause();
         _startCueBlink();
-        setState(() {
-          _paused = true;
-        });
+        setState(() => _paused = true);
       }
     }
   }
 
   void _startCueBlink() {
-    // 0→1로 한 번 올린 뒤, 계속 왕복 반복(깜빡이)
     _cueCtrl.forward(from: 0).then((_) {
       if (!mounted) return;
       _cueCtrl.repeat(reverse: true);
@@ -135,12 +126,11 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
 
   Future<void> _goPrev() async {
     if (!mounted) return;
-    // ✅ 5번째(인덱스 4, radish) & 플레이 화면으로 바로 복귀
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (c, a, b) => const GameSet1Screen(
           initialIndex: 4, // radish
-          startInPlay: true, // ✅ FruitPlayStage로 즉시
+          startInPlay: true,
         ),
         transitionsBuilder: (c, a, b, child) =>
             FadeTransition(opacity: a, child: child),
@@ -151,7 +141,6 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
 
   Future<void> _goHomeToSplash() async {
     if (!mounted) return;
-    // MaterialApp에서 '/' 라우트가 스플래시/메인이어야 함
     Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
@@ -162,7 +151,6 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
       await _c.pause();
       setState(() => _paused = true);
     } else {
-      // 끝났다면 깜빡이 멈추고 재생 재개
       if (_ended) {
         _ended = false;
         _cueCtrl.stop();
@@ -179,6 +167,9 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
       if (k == LogicalKeyboardKey.enter ||
           k == LogicalKeyboardKey.numpadEnter ||
           k == LogicalKeyboardKey.space) {
+        if (_ended) {
+          GlobalSfx.instance.play('tap'); // ✅ 아웃라인 상태면 탭 사운드
+        }
         _goNext();
         return KeyEventResult.handled;
       }
@@ -194,7 +185,6 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
     return KeyEventResult.ignored;
   }
 
-  // 부모 제스처가 컨트롤러 영역 탭을 먹지 않도록 영역 체크
   bool _isInControllerArea(Offset globalPos, Size screenSize) {
     final scale = _calcScale(screenSize);
     final canvasW = baseW * scale;
@@ -220,7 +210,6 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
     final ready = _inited && _c.value.isInitialized && _error == null;
     final screenSize = MediaQuery.of(context).size;
 
-    // 스케일/패딩(컨트롤러 위치에 사용)
     final scale = _calcScale(screenSize);
     final canvasW = baseW * scale;
     final canvasH = baseH * scale;
@@ -233,23 +222,12 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
         // 컨트롤러 영역 클릭은 무시
         if (_isInControllerArea(d.globalPosition, screenSize)) return;
 
-        // ✅ 기존 동작 유지: 언제나 즉시 다음 화면
-        // 단, 꼬미 아웃라인(=영상 끝)일 때는 버튼음만 추가로 재생(지연 없음)
+        // ✅ 영상 끝(아웃라인)일 때만 탭 사운드 재생
         if (_ended) {
-          final tapPlayer = AudioPlayer()
-            ..setPlayerMode(PlayerMode.lowLatency)
-            ..setReleaseMode(ReleaseMode.stop)
-            ..setVolume(0.9);
-          unawaited(tapPlayer.play(AssetSource('audio/sfx/btn_tap.mp3')));
-          // 느슨한 정리
-          Future.delayed(const Duration(milliseconds: 500), () async {
-            try {
-              await tapPlayer.dispose();
-            } catch (_) {}
-          });
+          GlobalSfx.instance.play('tap');
         }
 
-        _goNext(); // ⬅️ 즉시 진행 (동작 동일)
+        _goNext(); // 즉시 진행 (사운드는 전역이므로 끊기지 않음)
       },
       child: Focus(
         autofocus: true,
@@ -270,7 +248,6 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
                   ),
                 )
               else
-                // 로딩/에러
                 Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
@@ -337,7 +314,7 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
                   ),
                 ),
 
-              // 5) 컨트롤러(1920×1080 기준 좌표에 맞춰 배치)
+              // 5) 컨트롤러
               Positioned(
                 left: leftPad,
                 top: topPad,
@@ -353,9 +330,9 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
                         alignment: Alignment.topRight,
                         child: GameControllerBar(
                           isPaused: _paused,
-                          onHome: _goHomeToSplash, // 🏠 홈=스플래시('/')
-                          onPrev: _goPrev, // ⬅️ 이전=GameSet1Screen(5번째, 플레이)
-                          onNext: _goNext, // ➡️ 다음=LearnSet3Screen
+                          onHome: _goHomeToSplash,
+                          onPrev: _goPrev,
+                          onNext: _goNext,
                           onPauseToggle: _togglePause,
                         ),
                       ),

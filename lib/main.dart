@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:kkomi_learn/core/global_sfx.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'utils/window_fit.dart';
@@ -18,10 +19,13 @@ import 'screens/splash_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1) window_manager 초기화 (데스크톱 창 제어를 위해 필수)
+  // 1) 전역 효과음 미리 로드
+  await GlobalSfx.instance.preload('tap', 'audio/sfx/btn_tap.mp3');
+
+  // 2) window_manager 초기화 (데스크톱 창 제어를 위해 필수)
   await windowManager.ensureInitialized();
 
-  // 2) 창 기본 옵션(최초 표시는 창 모드, 검은 배경, 중앙 정렬)
+  // 3) 창 기본 옵션(최초 표시는 창 모드, 검은 배경, 중앙 정렬)
   const opts = WindowOptions(
     title: '꼬미와 알록달록 채소 과일',
     backgroundColor: Colors.black, // 투명은 OS/테마에 따라 아티팩트 발생 가능
@@ -29,7 +33,7 @@ Future<void> main() async {
     fullScreen: false,
   );
 
-  // 3) 창을 실제로 보여주기 직전에 사이즈/위치 조정
+  // 4) 창을 실제로 보여주기 직전에 사이즈/위치 조정
   windowManager.waitUntilReadyToShow(opts, () async {
     // (핵심) 작업 영역에 맞춰 16:9로 리사이즈 + 중앙정렬
     await fitWindowToDisplay();

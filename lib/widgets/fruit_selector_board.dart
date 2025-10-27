@@ -2,8 +2,9 @@
 import 'dart:async'; // unawaited
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart';
+
 import '../models/learn_fruit.dart';
+import '../core/global_sfx.dart'; // ✅ 전역 SFX
 
 class FruitSelectorBoard extends StatefulWidget {
   const FruitSelectorBoard({
@@ -53,36 +54,21 @@ class _FruitSelectorBoardState extends State<FruitSelectorBoard>
     super.dispose();
   }
 
-  /// 가장 안정적인 방식:
-  /// - 매 탭마다 임시 AudioPlayer 생성 → 즉시 play()
-  /// - 150ms 정도 짧게 기다렸다가 화면 전환(체감상 "소리 후 이동")
-  /// - 500ms 뒤 플레이어 정리(dispose)
+  /// 전역 SFX 사용: 소리 재생 → 짧게 대기 → 콜백 실행
   Future<void> _tapSoundThenPick(int index) async {
     if (_busy) return;
     _busy = true;
 
-    final p = AudioPlayer()
-      ..setPlayerMode(PlayerMode.lowLatency)
-      ..setReleaseMode(ReleaseMode.stop)
-      ..setVolume(0.9);
+    // ✅ 전역 싱글톤으로 즉시 재생(화면 전환과 무관하게 계속 남음)
+    GlobalSfx.instance.play('tap');
 
-    // 사운드 재생(대기하지 않음)
-    unawaited(p.play(AssetSource('audio/sfx/btn_tap.mp3')));
-
-    // 짧은 딜레이 후 실제 선택 콜백 실행
+    // 기기별 오디오 시작 타이밍 보정용 짧은 대기
     await Future.delayed(const Duration(milliseconds: 150));
+
+    // 실제 선택 콜백
     widget.onFruitPicked(index);
 
-    // 플레이어 정리 (느슨하게)
-    unawaited(
-      Future.delayed(const Duration(milliseconds: 500), () async {
-        try {
-          await p.dispose();
-        } catch (_) {}
-      }),
-    );
-
-    // 더블탭 방지를 위해 살짝 뒤에 락 해제
+    // 더블탭 방지 해제 (살짝 딜레이)
     await Future.delayed(const Duration(milliseconds: 60));
     _busy = false;
   }

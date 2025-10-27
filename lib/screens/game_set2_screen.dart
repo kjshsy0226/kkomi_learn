@@ -1,12 +1,10 @@
-// lib/screens/game_set2_screen.dart
-import 'dart:async'; // unawaited
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
+import '../core/global_sfx.dart'; // ✅ 전역 SFX
 import '../models/learn_fruit.dart';
 import '../widgets/game_controller_bar.dart';
-import '../utils/sfx_pool.dart'; // ✅ SFX 풀
 import 'learn_set3_screen.dart';
 import 'game_set3_screen.dart';
 
@@ -19,16 +17,13 @@ class GameSet2Screen extends StatefulWidget {
 
 class _GameSet2ScreenState extends State<GameSet2Screen>
     with TickerProviderStateMixin {
-  // ── 기준 캔버스(1920×1080) & 컨트롤러 위치 ─────────────────────────────
   static const double baseW = 1920;
   static const double baseH = 1080;
   static const double controllerTopPx = 35;
   static const double controllerRightPx = 40;
 
-  // 입장 애니메이션: 시작 top-left 좌표(1920×1080 기준)
   static const Offset kEnterStartTopLeft = Offset(640, 540);
 
-  // ── 세트 구성(고정 순서) ──────────────────────────────────────────────
   final List<LearnFruit> _fruits = const [
     LearnFruit.apple,
     LearnFruit.napaCabbage,
@@ -42,7 +37,6 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     LearnFruit.peach,
   ];
 
-  // 🔹 과일 PNG 경로/키
   String _keyOf(LearnFruit f) => kLearnFruitMeta[f]!.key;
   String _pngOf(LearnFruit f) => 'assets/images/fruits/game/${_keyOf(f)}.png';
   String _eatOf(LearnFruit f) =>
@@ -50,21 +44,19 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
   final String _standing =
       'assets/videos/reactions/game/set2/standing_loop.mp4';
 
-  // ── 슬롯 좌표(고정 배치, "좌상단" 기준) ─────────────────────────────────
   static const List<Offset> kSet2Slots = <Offset>[
-    Offset(236.15, 124.80), // 사과
-    Offset(583.45, 109.05), // 배추
-    Offset(1021.40, 162.95), // 양파
-    Offset(1139.45, 384.15), // 오이
-    Offset(967.75, 835.50), // 귤
-    Offset(603.95, 702.85), // 시금치
-    Offset(298.85, 798.20), // 참외
-    Offset(201.25, 560.85), // 당근
-    Offset(389.75, 421.55), // 바나나
-    Offset(880.90, 451.55), // 복숭아
+    Offset(236.15, 124.80),
+    Offset(583.45, 109.05),
+    Offset(1021.40, 162.95),
+    Offset(1139.45, 384.15),
+    Offset(967.75, 835.50),
+    Offset(603.95, 702.85),
+    Offset(298.85, 798.20),
+    Offset(201.25, 560.85),
+    Offset(389.75, 421.55),
+    Offset(880.90, 451.55),
   ];
 
-  // 🔹 개별 과일 사이즈 매핑(1920×1080 기준 px)
   static const Map<LearnFruit, Size> kSet2FruitSizeBase = {
     LearnFruit.apple: Size(149, 146),
     LearnFruit.banana: Size(199, 200),
@@ -78,34 +70,24 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     LearnFruit.tangerine: Size(185, 144),
   };
 
-  // ── 상태 ─────────────────────────────────────────────────────────────
-  late final List<bool> _eaten; // 각 슬롯이 사라졌는가
-  final List<int> _history = []; // 먹은 슬롯 인덱스 스택
-  int? _playingIndex; // 현재 먹기 영상 슬롯
+  late final List<bool> _eaten;
+  final List<int> _history = [];
+  int? _playingIndex;
   bool _paused = false;
 
-  // 비디오 플레이어 (스탠딩 루프 + 먹기 1회성)
   late final VideoPlayerController _standingCtrl;
   VideoPlayerController? _eatCtrl;
 
-  // 입장 애니메이션(공용, Interval로 스태거)
   late final AnimationController _enterCtrl;
-
-  // 🔹 보빙(둥실둥실) 애니메이션: 위/아래만
   late final AnimationController _bobCtrl;
 
   @override
   void initState() {
     super.initState();
-    assert(
-      kSet2Slots.length == _fruits.length,
-      'kSet2Slots length must match fruits length(=10).',
-    );
+
+    assert(kSet2Slots.length == _fruits.length);
 
     _eaten = List<bool>.filled(_fruits.length, false);
-
-    // 🔊 SFX 미리 로드(첫 탭 누락 방지)
-    SfxPool.I.ensureLoaded();
 
     _standingCtrl = VideoPlayerController.asset(_standing)
       ..setLooping(true)
@@ -120,7 +102,6 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
       duration: const Duration(milliseconds: 900),
     )..forward();
 
-    // 보빙: 2.2초 주기의 위/아래만
     _bobCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2200),
@@ -134,8 +115,6 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     _standingCtrl.dispose();
     _enterCtrl.dispose();
     _bobCtrl.dispose();
-    // 앱 전역에서 SfxPool 계속 쓸 거면 dispose 생략 권장
-    // await SfxPool.I.dispose();
     super.dispose();
   }
 
@@ -148,12 +127,12 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
       if (_eatCtrl!.value.isPlaying) {
         _eatCtrl!.pause();
         _standingCtrl.pause();
-        _bobCtrl.stop(canceled: false); // 보빙 멈춤
+        _bobCtrl.stop(canceled: false);
         setState(() => _paused = true);
       } else {
         _eatCtrl!.play();
         if (!_standingCtrl.value.isPlaying) _standingCtrl.play();
-        if (!_bobCtrl.isAnimating) _bobCtrl.repeat(); // 보빙 재개
+        if (!_bobCtrl.isAnimating) _bobCtrl.repeat();
         setState(() => _paused = false);
       }
     } else {
@@ -183,12 +162,11 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     if (_playingIndex != null) return;
     if (_eaten[idx]) return;
 
-    setState(() {
-      _playingIndex = idx;
-    });
+    setState(() => _playingIndex = idx);
 
     _eatCtrl?.removeListener(_onEatTick);
     await _eatCtrl?.dispose();
+
     _eatCtrl = VideoPlayerController.asset(_eatOf(_fruits[idx]))
       ..setLooping(false);
 
@@ -240,10 +218,10 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
   }
 
   void _playRandomRemaining() {
-    final remainingIdx = <int>[];
-    for (int i = 0; i < _eaten.length; i++) {
-      if (!_eaten[i]) remainingIdx.add(i);
-    }
+    final remainingIdx = [
+      for (int i = 0; i < _eaten.length; i++)
+        if (!_eaten[i]) i,
+    ];
     if (remainingIdx.isEmpty) return;
     final idx = remainingIdx[Random().nextInt(remainingIdx.length)];
     _playEatByIndex(idx);
@@ -276,9 +254,7 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     }
 
     final lastIdx = _history.removeLast();
-    setState(() {
-      _eaten[lastIdx] = false;
-    });
+    setState(() => _eaten[lastIdx] = false);
   }
 
   Future<void> _goNext() async {
@@ -327,7 +303,6 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
       backgroundColor: const Color(0xFFF6E691),
       body: Stack(
         children: [
-          // 캔버스 프레임
           Positioned(
             left: leftPad,
             top: topPad,
@@ -335,7 +310,6 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
             height: canvasH,
             child: Stack(
               children: [
-                // 1) 스탠딩 루프
                 if (_standingCtrl.value.isInitialized)
                   Positioned.fill(
                     child: IgnorePointer(
@@ -355,7 +329,6 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
                     child: Center(child: CircularProgressIndicator()),
                   ),
 
-                // 2) 먹기 영상 오버레이
                 if (_playingIndex != null &&
                     _eatCtrl != null &&
                     _eatCtrl!.value.isInitialized)
@@ -373,7 +346,6 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
                     ),
                   ),
 
-                // 3) 과일(좌상단 기준) — 입장 + 위/아래 보빙
                 AbsorbPointer(
                   absorbing: _playingIndex != null,
                   child: Stack(
@@ -381,21 +353,18 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
                   ),
                 ),
 
-                // 4) 재생 중 스킵 투명 레이어
                 if (_playingIndex != null)
                   Positioned.fill(
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () async {
-                        await SfxPool.I.tap(); // 🔊
+                        GlobalSfx.instance.play('tap'); // ✅ 전역 효과음
                         await Future.delayed(const Duration(milliseconds: 150));
                         await _skipOrFinishCurrentEat();
                       },
-                      child: const SizedBox.expand(),
                     ),
                   ),
 
-                // 5) 컨트롤러
                 Positioned(
                   top: controllerTopPx * scale,
                   right: controllerRightPx * scale,
@@ -419,11 +388,9 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     );
   }
 
-  // ── 좌상단 기준 배치 + 입장 + (위/아래) 보빙 ────────────────────────────
   List<Widget> _buildFixedFruits(double scale, double leftPad, double topPad) {
     double lerpD(double a, double b, double t) => a + (b - a) * t;
 
-    // 입장 스태거
     Animation<double> staggerAnimFor(
       int i, {
       double span = 0.55,
@@ -438,16 +405,15 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     }
 
     final widgets = <Widget>[];
+
     for (int i = 0; i < _fruits.length; i++) {
       if (_eaten[i]) continue;
 
       final fruit = _fruits[i];
       final targetBase = kSet2Slots[i];
-
-      // 🔹 과일별 사이즈(스케일 반영)
-      final Size baseSize = kSet2FruitSizeBase[fruit] ?? const Size(160, 160);
-      final double itemW = baseSize.width * scale;
-      final double itemH = baseSize.height * scale;
+      final baseSize = kSet2FruitSizeBase[fruit] ?? const Size(160, 160);
+      final itemW = baseSize.width * scale;
+      final itemH = baseSize.height * scale;
 
       final enterAnim = staggerAnimFor(i);
       final opacityAnim = CurvedAnimation(
@@ -455,23 +421,18 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
         curve: Interval((i * 0.06).clamp(0.0, 1.0), 1.0, curve: Curves.easeIn),
       );
 
-      // 🔹 보빙 파라미터
-      final double ampPx = 6.0 * scale; // 위/아래 진폭
-      final double phase = i * pi * 0.8; // 과일별 위상 차
+      final ampPx = 6.0 * scale;
+      final phase = i * pi * 0.8;
 
       widgets.add(
         AnimatedBuilder(
           animation: Listenable.merge([_enterCtrl, _bobCtrl]),
           builder: (context, _) {
             final t = enterAnim.value;
-
-            // 입장 보간(좌상단 기준)
             final xBase = lerpD(kEnterStartTopLeft.dx, targetBase.dx, t);
             final yBase = lerpD(kEnterStartTopLeft.dy, targetBase.dy, t);
-
-            // 보빙(위/아래만)
-            final double theta = (_bobCtrl.value * 2 * pi) + phase;
-            final double dy = sin(theta) * ampPx;
+            final theta = (_bobCtrl.value * 2 * pi) + phase;
+            final dy = sin(theta) * ampPx;
 
             final left = leftPad + xBase * scale;
             final top = topPad + yBase * scale + dy;
@@ -486,13 +447,13 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () async {
-                    await SfxPool.I.tap(); // 🔊
+                    GlobalSfx.instance.play('tap'); // ✅ 전역 효과음
                     await Future.delayed(const Duration(milliseconds: 150));
                     _playEatByIndex(i);
                   },
                   child: Image.asset(
                     _pngOf(fruit),
-                    fit: BoxFit.fill, // 개별 PNG 실제 캔버스 크기에 딱 맞춤
+                    fit: BoxFit.fill,
                     errorBuilder: (context, error, stack) =>
                         const SizedBox.shrink(),
                   ),
@@ -503,6 +464,7 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
         ),
       );
     }
+
     return widgets;
   }
 }

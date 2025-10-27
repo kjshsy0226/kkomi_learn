@@ -1,6 +1,7 @@
+// lib/widgets/game_controller_bar.dart
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:window_manager/window_manager.dart';
+import '../core/global_sfx.dart'; // ✅ 전역 SFX 싱글톤
 
 class GameControllerBar extends StatefulWidget {
   const GameControllerBar({
@@ -9,7 +10,7 @@ class GameControllerBar extends StatefulWidget {
     this.onPrev,
     this.onNext,
     this.onPauseToggle,
-    this.onExit,
+    this.onExit, // 윈도우 종료 전에 로그/세이브 등 추가 액션
     this.isPaused = false,
   });
 
@@ -17,7 +18,7 @@ class GameControllerBar extends StatefulWidget {
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
   final VoidCallback? onPauseToggle;
-  final VoidCallback? onExit; // 윈도우 종료 외에 추가 액션(로그/세이브 등) 필요 시 사용
+  final VoidCallback? onExit;
   final bool isPaused;
 
   @override
@@ -43,52 +44,51 @@ class _GameControllerBarState extends State<GameControllerBar> {
   bool _pressedNext = false;
   bool _pressedExit = false;
 
-  // 클릭 SFX (저지연 최적화)
-  late final AudioPlayer _tapPlayer;
+  // Exit 더블클릭 잠금
+  bool _exitLock = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _tapPlayer = AudioPlayer()
-      ..setPlayerMode(PlayerMode.lowLatency)
-      ..setReleaseMode(ReleaseMode.stop)
-      ..setVolume(0.9)
-      // 선재생 지연 제거를 위한 프리로드
-      ..setSource(AssetSource('audio/sfx/btn_tap.mp3'));
+  void _tapThen(VoidCallback? action) {
+    GlobalSfx.instance.play('tap'); // ✅ 전역에서 재생 → 화면 전환/로직과 무관하게 계속 남
+    action?.call();
   }
 
-  @override
-  void dispose() {
-    _tapPlayer.dispose();
-    super.dispose();
-  }
+  Future<void> _tapThenExit({
+    Duration? delay, // null이면 플랫폼별 기본값 사용
+  }) async {
+    if (_exitLock) return;
+    _exitLock = true;
 
-  Future<void> _playTapAndExitAfter(Duration delay) async {
+    // 1) 로그/세이브 등 선처리
+    widget.onExit?.call();
+
+    // 2) 전역 탭 사운드 재생
+    GlobalSfx.instance.play('tap');
+
+    // 3) 플랫폼별 최소 대기 (소리 끊김 방지)
+    //    macOS는 살짝 더 길게 주는 게 안정적
+    final d =
+        delay ??
+        (Theme.of(context).platform == TargetPlatform.macOS
+            ? const Duration(milliseconds: 220)
+            : const Duration(milliseconds: 180));
+    await Future.delayed(d);
+
+    // 4) 종료 시도: close() → 실패/무시 시 destroy()로 보강
     try {
-      final p = AudioPlayer()
-        ..setPlayerMode(PlayerMode.lowLatency)
-        ..setReleaseMode(ReleaseMode.stop)
-        ..setVolume(0.9);
-
-      // Exit 전용: 임시 플레이어로 바로 재생
-      await p.play(AssetSource('audio/sfx/btn_tap.mp3'));
-
-      // 짧은 지연 후 종료 + 정리
-      Future.delayed(delay, () async {
-        try {
-          await p.dispose();
-        } catch (_) {}
-        await windowManager.close();
-      });
+      await windowManager.close(); // 일반적인 '창 닫기'
+      // 일부 환경에서 close가 no-op일 수 있으므로 살짝 더 보장
+      await Future.delayed(const Duration(milliseconds: 60));
+      final isVisible = await windowManager.isVisible();
+      if (isVisible == true) {
+        await windowManager.destroy(); // 프로세스 종료에 가까운 동작
+      }
     } catch (_) {
-      // 실패시라도 종료는 진행
-      await windowManager.close();
+      try {
+        await windowManager.destroy();
+      } catch (_) {}
+    } finally {
+      _exitLock = false;
     }
-  }
-
-  Future<void> _playTap() async {
-    await _tapPlayer.seek(Duration.zero); // 맨 앞으로
-    await _tapPlayer.resume(); // 미리 로드된 소스 재생
   }
 
   void _resetPressed() {
@@ -117,10 +117,7 @@ class _GameControllerBarState extends State<GameControllerBar> {
                     pressed: 'assets/images/ui/controller/btn_home_pressed.png',
                     pressedFlag: _pressedHome,
                     setPressed: (v) => setState(() => _pressedHome = v),
-                    onTap: () {
-                      _playTap();
-                      widget.onHome?.call();
-                    },
+                    onTap: () => _tapThen(widget.onHome),
                   ),
                   const SizedBox(width: _gap),
                   _buildButton(
@@ -128,10 +125,7 @@ class _GameControllerBarState extends State<GameControllerBar> {
                     pressed: 'assets/images/ui/controller/btn_prev_pressed.png',
                     pressedFlag: _pressedPrev,
                     setPressed: (v) => setState(() => _pressedPrev = v),
-                    onTap: () {
-                      _playTap();
-                      widget.onPrev?.call();
-                    },
+                    onTap: () => _tapThen(widget.onPrev),
                   ),
                   const SizedBox(width: _gap),
                   _buildButton(
@@ -143,10 +137,7 @@ class _GameControllerBarState extends State<GameControllerBar> {
                         : 'assets/images/ui/controller/btn_pause_pressed.png',
                     pressedFlag: _pressedPause,
                     setPressed: (v) => setState(() => _pressedPause = v),
-                    onTap: () {
-                      _playTap();
-                      widget.onPauseToggle?.call();
-                    },
+                    onTap: () => _tapThen(widget.onPauseToggle),
                   ),
                   const SizedBox(width: _gap),
                   _buildButton(
@@ -154,10 +145,7 @@ class _GameControllerBarState extends State<GameControllerBar> {
                     pressed: 'assets/images/ui/controller/btn_next_pressed.png',
                     pressedFlag: _pressedNext,
                     setPressed: (v) => setState(() => _pressedNext = v),
-                    onTap: () {
-                      _playTap();
-                      widget.onNext?.call();
-                    },
+                    onTap: () => _tapThen(widget.onNext),
                   ),
                   const SizedBox(width: _gap),
                   _buildButton(
@@ -165,12 +153,7 @@ class _GameControllerBarState extends State<GameControllerBar> {
                     pressed: 'assets/images/ui/controller/btn_exit_pressed.png',
                     pressedFlag: _pressedExit,
                     setPressed: (v) => setState(() => _pressedExit = v),
-                    onTap: () {
-                      // 다른 버튼들은 기존 _playTap() + 즉시 동작 유지
-                      // Exit만 소리 듣고 잠깐 후 종료
-                      widget.onExit?.call(); // 로그/세이브 등 선처리
-                      _playTapAndExitAfter(const Duration(milliseconds: 180));
-                    },
+                    onTap: _tapThenExit, // ✅ 소리 듣고 잠깐 뒤 종료
                   ),
                 ],
               ),

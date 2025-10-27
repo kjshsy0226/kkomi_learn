@@ -1,6 +1,8 @@
+import 'dart:async'; // unawaited
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 import '../models/learn_fruit.dart';
 import '../widgets/game_controller_bar.dart';
@@ -193,14 +195,14 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
   }
 
   // 스킵/자연 종료 공통 완료 처리
-  void _finishEat() {
+  Future<void> _finishEat() async {
     setState(() {
       _eatCtrl?.removeListener(_onEatTick);
       _eatCtrl?.dispose();
       _eatCtrl = null;
 
       final idx = _playingIndex;
-      _playingIndex = null; // 오버레이 해제
+      _playingIndex = null;
 
       if (idx != null && !_eaten[idx]) {
         _eaten[idx] = true;
@@ -220,9 +222,9 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
     }
   }
 
-  void _skipOrFinishCurrentEat() {
+  Future<void> _skipOrFinishCurrentEat() async {
     if (_playingIndex == null || _eatCtrl == null) return;
-    _finishEat();
+    await _finishEat();
   }
 
   void _playRandomRemaining() {
@@ -365,12 +367,36 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
                   ),
                 ),
 
-                // 4) 재생 중 스킵용 투명 오버레이(컨트롤러 아래/과일 위)
+                // 4) 재생 중 스킵 투명 레이어
                 if (_playingIndex != null)
                   Positioned.fill(
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: _skipOrFinishCurrentEat,
+                      onTap: () async {
+                        // 🔊 버튼 효과음 (저지연)
+                        final tapPlayer = AudioPlayer()
+                          ..setPlayerMode(PlayerMode.lowLatency)
+                          ..setReleaseMode(ReleaseMode.stop)
+                          ..setVolume(0.9);
+
+                        unawaited(
+                          tapPlayer.play(AssetSource('audio/sfx/btn_tap.mp3')),
+                        );
+
+                        // 🎬 짧은 대기 후 스킵 처리
+                        await Future.delayed(const Duration(milliseconds: 150));
+                        await _skipOrFinishCurrentEat();
+
+                        // 💨 플레이어 정리 (느슨하게)
+                        Future.delayed(
+                          const Duration(milliseconds: 500),
+                          () async {
+                            try {
+                              await tapPlayer.dispose();
+                            } catch (_) {}
+                          },
+                        );
+                      },
                       child: const SizedBox.expand(),
                     ),
                   ),
@@ -426,7 +452,7 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
       final fruit = _fruits[i];
       final targetBase = kSet3Slots[i];
 
-      // 과일별 사이즈(스케일 반영)
+      // 🔹 과일별 사이즈(스케일 반영)
       final Size baseSize = kSet3FruitSizeBase[fruit] ?? const Size(160, 160);
       final double itemW = baseSize.width * scale;
       final double itemH = baseSize.height * scale;
@@ -437,7 +463,7 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
         curve: Interval((i * 0.06).clamp(0.0, 1.0), 1.0, curve: Curves.easeIn),
       );
 
-      // 보빙 파라미터
+      // 🔹 보빙 파라미터
       final double ampPx = 6.0 * scale; // 위/아래 진폭
       final double phase = i * pi * 0.8; // 과일별 위상 차
 
@@ -455,8 +481,8 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
             final double theta = (_bobCtrl.value * 2 * pi) + phase;
             final double dy = sin(theta) * ampPx;
 
-            final double left = leftPad + xBase * scale;
-            final double top = topPad + yBase * scale + dy;
+            final left = leftPad + xBase * scale;
+            final top = topPad + yBase * scale + dy;
 
             return Positioned(
               left: left,
@@ -464,13 +490,31 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
               width: itemW,
               height: itemH,
               child: Opacity(
-                opacity: opacityAnim.value, // 0 → 1
+                opacity: opacityAnim.value,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () => _playEatByIndex(i),
+                  onTap: () async {
+                    // ✅ 과일 클릭 시 효과음 + 짧은 대기 후 실행
+                    final tapPlayer = AudioPlayer()
+                      ..setPlayerMode(PlayerMode.lowLatency)
+                      ..setReleaseMode(ReleaseMode.stop)
+                      ..setVolume(0.9);
+                    unawaited(
+                      tapPlayer.play(AssetSource('audio/sfx/btn_tap.mp3')),
+                    );
+
+                    await Future.delayed(const Duration(milliseconds: 150));
+                    _playEatByIndex(i);
+
+                    Future.delayed(const Duration(milliseconds: 500), () async {
+                      try {
+                        await tapPlayer.dispose();
+                      } catch (_) {}
+                    });
+                  },
                   child: Image.asset(
                     _pngOf(fruit),
-                    fit: BoxFit.fill, // PNG 실제 박스에 맞춤 (여백 있으면 contain 추천)
+                    fit: BoxFit.fill,
                     errorBuilder: (context, error, stack) =>
                         const SizedBox.shrink(),
                   ),

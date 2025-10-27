@@ -157,14 +157,6 @@ class _SplashScreenState extends State<SplashScreen> {
                           ),
                   ),
                 ),
-              const Positioned(
-                right: 16,
-                bottom: 24,
-                child: Text(
-                  '탭 또는 Enter로 시작',
-                  style: TextStyle(color: Colors.white70),
-                ),
-              ),
               if (_error != null && (Platform.isWindows))
                 const Positioned(
                   left: 16,

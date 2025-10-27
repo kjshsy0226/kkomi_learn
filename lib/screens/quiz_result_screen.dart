@@ -165,15 +165,6 @@ class _QuizResultScreenState extends State<QuizResultScreen> {
                   ),
                 ),
 
-              const Positioned(
-                right: 16,
-                bottom: 24,
-                child: Text(
-                  '탭 또는 Enter로 처음으로',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-              ),
-
               if (_error != null && Platform.isWindows)
                 const Positioned(
                   left: 16,

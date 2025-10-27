@@ -1,9 +1,11 @@
 // lib/screens/learn_set2_screen.dart
 import 'dart:io' show Platform;
+import 'dart:async'; // unawaited ✅ 사운드 fire-and-forget에 필요
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
+import 'package:audioplayers/audioplayers.dart'; // ✅ 추가: 버튼 효과음
 
 import '../widgets/game_controller_bar.dart'; // ✅ 컨트롤러
 import 'game_set1_screen.dart'; // ✅ 이전 화면
@@ -228,9 +230,26 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
     return GestureDetector(
       behavior: HitTestBehavior.deferToChild,
       onTapDown: (d) {
-        if (!_isInControllerArea(d.globalPosition, screenSize)) {
-          _goNext();
+        // 컨트롤러 영역 클릭은 무시
+        if (_isInControllerArea(d.globalPosition, screenSize)) return;
+
+        // ✅ 기존 동작 유지: 언제나 즉시 다음 화면
+        // 단, 꼬미 아웃라인(=영상 끝)일 때는 버튼음만 추가로 재생(지연 없음)
+        if (_ended) {
+          final tapPlayer = AudioPlayer()
+            ..setPlayerMode(PlayerMode.lowLatency)
+            ..setReleaseMode(ReleaseMode.stop)
+            ..setVolume(0.9);
+          unawaited(tapPlayer.play(AssetSource('audio/sfx/btn_tap.mp3')));
+          // 느슨한 정리
+          Future.delayed(const Duration(milliseconds: 500), () async {
+            try {
+              await tapPlayer.dispose();
+            } catch (_) {}
+          });
         }
+
+        _goNext(); // ⬅️ 즉시 진행 (동작 동일)
       },
       child: Focus(
         autofocus: true,

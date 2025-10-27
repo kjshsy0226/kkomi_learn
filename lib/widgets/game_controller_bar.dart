@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:window_manager/window_manager.dart';
 
 class GameControllerBar extends StatefulWidget {
   const GameControllerBar({
@@ -16,7 +17,7 @@ class GameControllerBar extends StatefulWidget {
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
   final VoidCallback? onPauseToggle;
-  final VoidCallback? onExit;
+  final VoidCallback? onExit; // 윈도우 종료 외에 추가 액션(로그/세이브 등) 필요 시 사용
   final bool isPaused;
 
   @override
@@ -48,13 +49,12 @@ class _GameControllerBarState extends State<GameControllerBar> {
   @override
   void initState() {
     super.initState();
-    _tapPlayer = AudioPlayer();
-    _tapPlayer.setPlayerMode(PlayerMode.lowLatency);
-    _tapPlayer.setReleaseMode(ReleaseMode.stop);
-    _tapPlayer.setVolume(0.9);
-
-    // (선택) 미리 로드
-    _tapPlayer.setSource(AssetSource('audio/sfx/btn_tap.mp3'));
+    _tapPlayer = AudioPlayer()
+      ..setPlayerMode(PlayerMode.lowLatency)
+      ..setReleaseMode(ReleaseMode.stop)
+      ..setVolume(0.9)
+      // 선재생 지연 제거를 위한 프리로드
+      ..setSource(AssetSource('audio/sfx/btn_tap.mp3'));
   }
 
   @override
@@ -63,9 +63,32 @@ class _GameControllerBarState extends State<GameControllerBar> {
     super.dispose();
   }
 
+  Future<void> _playTapAndExitAfter(Duration delay) async {
+    try {
+      final p = AudioPlayer()
+        ..setPlayerMode(PlayerMode.lowLatency)
+        ..setReleaseMode(ReleaseMode.stop)
+        ..setVolume(0.9);
+
+      // Exit 전용: 임시 플레이어로 바로 재생
+      await p.play(AssetSource('audio/sfx/btn_tap.mp3'));
+
+      // 짧은 지연 후 종료 + 정리
+      Future.delayed(delay, () async {
+        try {
+          await p.dispose();
+        } catch (_) {}
+        await windowManager.close();
+      });
+    } catch (_) {
+      // 실패시라도 종료는 진행
+      await windowManager.close();
+    }
+  }
+
   Future<void> _playTap() async {
     await _tapPlayer.seek(Duration.zero); // 맨 앞으로
-    await _tapPlayer.resume(); // 현재 소스 재생
+    await _tapPlayer.resume(); // 미리 로드된 소스 재생
   }
 
   void _resetPressed() {
@@ -143,8 +166,10 @@ class _GameControllerBarState extends State<GameControllerBar> {
                     pressedFlag: _pressedExit,
                     setPressed: (v) => setState(() => _pressedExit = v),
                     onTap: () {
-                      _playTap();
-                      widget.onExit?.call();
+                      // 다른 버튼들은 기존 _playTap() + 즉시 동작 유지
+                      // Exit만 소리 듣고 잠깐 후 종료
+                      widget.onExit?.call(); // 로그/세이브 등 선처리
+                      _playTapAndExitAfter(const Duration(milliseconds: 180));
                     },
                   ),
                 ],

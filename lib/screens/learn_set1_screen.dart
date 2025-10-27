@@ -251,16 +251,6 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
                   ),
                 ),
 
-              // ── 우하단 힌트 텍스트 ─────────────────────────────────────
-              const Positioned(
-                right: 16,
-                bottom: 24,
-                child: Text(
-                  '탭 또는 Enter로 계속',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-              ),
-
               // ── Windows 코덱 힌트 ──────────────────────────────────────
               if (_error != null && Platform.isWindows)
                 const Positioned(

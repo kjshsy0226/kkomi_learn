@@ -1,12 +1,12 @@
 ; installer.iss — Kkomi Learn (Flutter Windows)
 #define AppName "Kkomi Learn"
 #define AppVersion "1.0.0"
-#define Publisher "I-DESIGN-LAB"
+#define Publisher "Luke"
 #define ExeName "kkomi_learn.exe"
 #define BuildDir "build\\windows\\x64\\runner\\Release"
 
 [Setup]
-AppId={{A5B8B0D1-3E0E-4B7D-9A7D-FA2E7B2BDE11}}
+AppId={{9B1E9F5C-6B1C-4F9A-9A73-55E2E6D6F2B9}}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher={#Publisher}

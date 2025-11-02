@@ -52,7 +52,7 @@ Desktop.ini
 .pub-cache/
 .pub/
 /build/
-/coverage/
+.coverage/
 .melos_tool/
 .flutter-versions
 
@@ -197,3 +197,8 @@ pnpm-lock.yaml
 *.rej
 *.swp
 *.swo
+
+# ──────────────────────────────
+# Media (MP4 only; keep scope to assets/)
+# ──────────────────────────────
+assets/**/*.mp4

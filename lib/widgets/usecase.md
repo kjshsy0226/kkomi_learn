@@ -19,7 +19,7 @@ final audioCtrl = SequenceAudioController();
 SequenceSpriteAudio(
 controller: audioCtrl,
 assetPaths: frames,
-audioAsset: 'assets/audio/bgm/main_theme.wav',
+audioAsset: 'assets/audio/bgm/game_theme.wav',
 audioSyncMode: AudioSyncMode.followImageLoopRestart, // 또는 independentLoop/oneShotPerPlay/none
 fps: 24,
 loop: true,

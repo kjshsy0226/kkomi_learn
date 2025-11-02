@@ -2,23 +2,16 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:kkomi_learn/widgets/fruit_play_stage.dart';
 
 import '../models/learn_fruit.dart';
 import '../widgets/game_controller_bar.dart';
 import '../widgets/fruit_selector_board.dart';
-import 'learn_set1_screen.dart'; // 이전(학습 영상)
-import 'learn_set2_screen.dart';
+import '../widgets/fruit_play_stage.dart';
+import 'learn_set1_screen.dart'; // Prev (선택 화면에서 이전)
+import 'learn_set5_screen.dart'; // Next (게임1 끝나면 여기로)
 
 class GameSet1Screen extends StatefulWidget {
-  const GameSet1Screen({
-    super.key,
-    this.initialIndex = 0,
-    this.startInPlay = false, // true면 FruitPlayStage로 바로 진입
-  });
-
-  final int initialIndex;
-  final bool startInPlay;
+  const GameSet1Screen({super.key});
 
   @override
   State<GameSet1Screen> createState() => _GameSet1ScreenState();
@@ -33,6 +26,7 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
   static const double controllerTopPx = 35;
   static const double controllerRightPx = 40;
 
+  // 노란 세트(예시 5개)
   final fruits = const [
     LearnFruit.apple,
     LearnFruit.carrot,
@@ -41,8 +35,8 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
     LearnFruit.radish,
   ];
 
-  late int _fruitIndex;
-  late _Stage _stage; // startInPlay로 초기 스테이지 결정
+  int _fruitIndex = 0;
+  _Stage _stage = _Stage.select;
 
   bool _isSlice = false;
   bool _isLike = false;
@@ -55,10 +49,6 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
   @override
   void initState() {
     super.initState();
-    _fruitIndex = widget.initialIndex.clamp(0, fruits.length - 1);
-    _stage = widget.startInPlay ? _Stage.play : _Stage.select;
-    _isSlice = false;
-    _isLike = false;
     _startBgm();
   }
 
@@ -71,7 +61,7 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
 
   Future<void> _startBgm() async {
     await _bgm.setReleaseMode(ReleaseMode.loop);
-    await _bgm.play(AssetSource('audio/bgm/main_theme.wav'));
+    await _bgm.play(AssetSource('audio/bgm/game_theme.wav'));
   }
 
   void _selectFruit(int index) {
@@ -92,15 +82,15 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
     }
   }
 
-  // ⬅️ 이전: 스테이지/인덱스에 따라 분기
+  // ⬅️ 이전
   Future<void> _goPrev() async {
     if (_stage == _Stage.select) {
-      // 선택 화면에서 이전 → LearnSet1Screen
+      // 선택 화면에서 이전 → LearnSet1
       await _bgm.stop();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (c, a, b) => LearnSet1Screen(initialIndex: _fruitIndex),
+          pageBuilder: (c, a, b) => const LearnSet1Screen(),
           transitionsBuilder: (c, a, b, child) =>
               FadeTransition(opacity: a, child: child),
           transitionDuration: const Duration(milliseconds: 300),
@@ -117,7 +107,6 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
         _isLike = false;
       });
     } else {
-      // 첫 번째 과일이면 선택 화면으로
       setState(() {
         _stage = _Stage.select;
         _isSlice = false;
@@ -126,14 +115,15 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
     }
   }
 
-  // 🏠 홈: 스플래시(메인, '/')로
+  // 🏠 홈
   Future<void> _goHomeToSplash() async {
     await _bgm.stop();
     if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
-  void _goNext() {
+  // ➡️ 다음
+  Future<void> _goNext() async {
     if (_stage == _Stage.select) {
       setState(() {
         _stage = _Stage.play;
@@ -142,6 +132,7 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
       });
       return;
     }
+
     if (_fruitIndex < fruits.length - 1) {
       setState(() {
         _fruitIndex++;
@@ -149,9 +140,12 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
         _isLike = false;
       });
     } else {
+      // 마지막 과일 완료 ➜ LearnSet5로 이동 (게임 BGM 중단)
+      await _bgm.stop();
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (c, a, b) => const LearnSet2Screen(),
+          pageBuilder: (c, a, b) => const LearnSet5Screen(),
           transitionsBuilder: (c, a, b, child) =>
               FadeTransition(opacity: a, child: child),
           transitionDuration: const Duration(milliseconds: 300),
@@ -169,7 +163,7 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
     final leftPad = (sz.width - canvasW) / 2;
     final topPad = (sz.height - canvasH) / 2;
 
-    // 1920×1080 기준 좌표
+    // 1920×1080 기준 좌표 샘플
     const topLeftPx = <Offset>[
       Offset(502.50, 239.55), // apple
       Offset(1062.75, 272.75), // carrot
@@ -178,13 +172,12 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
       Offset(1301.70, 637.40), // radish
     ];
 
-    // 각 아이템 원본 크기
     const itemSizesPx = <Size>[
-      Size(392, 206.65), // apple
-      Size(243.1, 183.65), // carrot
-      Size(276.45, 184.35), // cucumber
-      Size(268.6, 153.1), // grape
-      Size(265.2, 212.7), // radish
+      Size(392, 206.65),
+      Size(243.1, 183.65),
+      Size(276.45, 184.35),
+      Size(268.6, 153.1),
+      Size(265.2, 212.7),
     ];
 
     return Scaffold(
@@ -220,9 +213,9 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
                     alignment: Alignment.topRight,
                     child: GameControllerBar(
                       isPaused: _bgmPaused,
-                      onHome: _goHomeToSplash, // 홈=스플래시('/')
-                      onPrev: _goPrev, // 이전=분기 동작
-                      onNext: _goNext,
+                      onHome: _goHomeToSplash,
+                      onPrev: _goPrev,
+                      onNext: _goNext, // ✅ 마지막에서 LearnSet5로
                       onPauseToggle: () async {
                         if (_bgmPaused) {
                           await _bgm.resume();

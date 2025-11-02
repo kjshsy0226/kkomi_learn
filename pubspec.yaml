@@ -83,12 +83,15 @@ flutter:
     - assets/images/ui/
     - assets/images/ui/controller/
     - assets/videos/
+    - assets/videos/game_intro/
     - assets/videos/reactions/
     - assets/videos/reactions/game/
     - assets/videos/reactions/game/set2/
     - assets/videos/reactions/game/set3/
     - assets/videos/reactions/learn/
+    - assets/videos/result/
     - assets/videos/scene/
+    - assets/videos/splash/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

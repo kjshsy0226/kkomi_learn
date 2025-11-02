@@ -71,6 +71,9 @@ String learnCuriousVideo(LearnFruit f) =>
     'assets/videos/reactions/learn/${kLearnFruitMeta[f]!.key}_curious.mp4';
 String learnLikeVideo(LearnFruit f) =>
     'assets/videos/reactions/learn/${kLearnFruitMeta[f]!.key}_like.mp4';
+// ✅ like 종료 후 반복 루프
+String learnLikeLoopVideo(LearnFruit f) =>
+    'assets/videos/reactions/learn/${kLearnFruitMeta[f]!.key}_like_loop.mp4';
 
 const List<LearnFruit> kGameSet2 = [
   LearnFruit.apple,

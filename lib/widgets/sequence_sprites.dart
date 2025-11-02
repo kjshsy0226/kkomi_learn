@@ -224,7 +224,7 @@ enum AudioSyncMode {
 class SequenceSpriteAudio extends StatefulWidget {
   final SequenceAudioController controller;
   final List<String> assetPaths;
-  final String? audioAsset; // 예: assets/audio/bgm/main_theme.wav (pubspec 등록)
+  final String? audioAsset; // 예: assets/audio/bgm/game_theme.wav (pubspec 등록)
   final AudioSyncMode audioSyncMode;
 
   final double fps;

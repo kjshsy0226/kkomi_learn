@@ -14,8 +14,9 @@ class FruitSelectorBoard extends StatefulWidget {
     required this.topLeftPositionsBase, // 1920×1080 기준 Top-Left(px)
     this.itemSizesBase, // 1920×1080 기준 항목별 크기(px)
     this.backgroundPath = 'assets/images/selector/background.png',
-    this.highlightLogicalSize = const Size(222, 141),
+    this.highlightLogicalSize = const Size(222, 141), // 기본 히트박스 크기(이름만 유지)
     this.initialIndex = 0,
+    this.showHitboxes = false, // 🔧 디버그용 가시화
   });
 
   final List<LearnFruit> fruits;
@@ -29,52 +30,30 @@ class FruitSelectorBoard extends StatefulWidget {
 
   final int initialIndex;
 
+  /// 히트박스 시각화 (디버그용)
+  final bool showHitboxes;
+
   @override
   State<FruitSelectorBoard> createState() => _FruitSelectorBoardState();
 }
 
-class _FruitSelectorBoardState extends State<FruitSelectorBoard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse;
-  static const _pulseDur = Duration(milliseconds: 1200);
-
+class _FruitSelectorBoardState extends State<FruitSelectorBoard> {
   // 중복 탭 방지용
   bool _busy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(vsync: this, duration: _pulseDur)
-      ..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
 
   /// 전역 SFX 사용: 소리 재생 → 짧게 대기 → 콜백 실행
   Future<void> _tapSoundThenPick(int index) async {
     if (_busy) return;
     _busy = true;
 
-    // ✅ 전역 싱글톤으로 즉시 재생(화면 전환과 무관하게 계속 남음)
     GlobalSfx.instance.play('tap');
-
-    // 기기별 오디오 시작 타이밍 보정용 짧은 대기
     await Future.delayed(const Duration(milliseconds: 150));
 
-    // 실제 선택 콜백
     widget.onFruitPicked(index);
 
-    // 더블탭 방지 해제 (살짝 딜레이)
     await Future.delayed(const Duration(milliseconds: 60));
     _busy = false;
   }
-
-  String _hlPath(LearnFruit f) =>
-      'assets/images/selector/highlight_${kLearnFruitMeta[f]!.key}.png';
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +90,7 @@ class _FruitSelectorBoardState extends State<FruitSelectorBoard>
 
     return Stack(
       children: [
+        // 배경
         Positioned(
           left: leftPad,
           top: topPad,
@@ -122,8 +102,9 @@ class _FruitSelectorBoardState extends State<FruitSelectorBoard>
             errorBuilder: (context, error, stack) => const SizedBox.shrink(),
           ),
         ),
+
+        // 히트박스(투명). 필요하면 showHitboxes=true로 박스 표시
         ...List.generate(widget.fruits.length, (i) {
-          final fruit = widget.fruits[i];
           final itemSize =
               (widget.itemSizesBase != null && i < widget.itemSizesBase!.length)
               ? widget.itemSizesBase![i]
@@ -134,23 +115,28 @@ class _FruitSelectorBoardState extends State<FruitSelectorBoard>
             baseSizePx: itemSize,
           );
 
-          return AnimatedBuilder(
-            animation: _pulse,
-            builder: (context, _) {
-              final t = (_pulse.value + i * 0.18) % 1.0;
-              final alpha = 0.35 + 0.65 * (0.5 - 0.5 * cos(2 * pi * t));
-              return Positioned.fromRect(
-                rect: rect,
-                child: Opacity(
-                  opacity: alpha,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => _tapSoundThenPick(i), // ✅ 소리 → 짧은 대기 → 선택
-                    child: Image.asset(_hlPath(fruit), fit: BoxFit.fill),
-                  ),
-                ),
-              );
-            },
+          return Positioned.fromRect(
+            rect: rect,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _tapSoundThenPick(i),
+              child: widget.showHitboxes
+                  ? Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.cyanAccent, width: 2),
+                        color: Colors.cyanAccent.withAlpha(20),
+                      ),
+                      child: Text(
+                        '#$i',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  : const SizedBox.expand(),
+            ),
           );
         }),
       ],

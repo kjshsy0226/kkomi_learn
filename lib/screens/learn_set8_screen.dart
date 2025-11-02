@@ -1,29 +1,31 @@
-// lib/screens/learn_set1_screen.dart
+// (BGM 건드리지 않음: ensure/stop X, ▶❚❚ = 영상+BGM 동시 제어, 아웃라인 없음)
 import 'dart:io' show Platform;
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
-import '../core/bgm_tracks.dart'; // ✅ BGM 숏컷(ensureStory/stopStory)
+import '../core/bgm_tracks.dart'; // GlobalBgm
+import '../core/global_sfx.dart';
 import '../widgets/game_controller_bar.dart';
-import 'learn_set2_screen.dart';
+import 'learn_set7_screen.dart';
+import 'learn_set9_screen.dart';
 
-class LearnSet1Screen extends StatefulWidget {
-  const LearnSet1Screen({
+class LearnSet8Screen extends StatefulWidget {
+  const LearnSet8Screen({
     super.key,
-    this.introPath = 'assets/videos/scene/set1_scene.mp4',
-    this.loopPath = 'assets/videos/scene/set1_scene_loop.mp4',
+    this.introPath = 'assets/videos/scene/set8_scene.mp4',
+    this.loopPath = 'assets/videos/scene/set8_scene_loop.mp4',
   });
 
   final String introPath;
   final String loopPath;
 
   @override
-  State<LearnSet1Screen> createState() => _LearnSet1ScreenState();
+  State<LearnSet8Screen> createState() => _LearnSet8ScreenState();
 }
 
-class _LearnSet1ScreenState extends State<LearnSet1Screen> {
+class _LearnSet8ScreenState extends State<LearnSet8Screen> {
   static const double baseW = 1920, baseH = 1080;
   static const double controllerTopPx = 35, controllerRightPx = 40;
   static const double _controllerBaseW = 460, _controllerBaseH = 135;
@@ -37,13 +39,18 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
   void initState() {
     super.initState();
 
-    // ✅ 스토리 BGM 보장(키/경로 하드코딩 금지: 숏컷 사용)
-    GlobalBgm.instance.ensureStory();
+    _introC =
+        VideoPlayerController.asset(
+            widget.introPath,
+            videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+          )
+          ..setLooping(false)
+          ..addListener(_onIntroTick);
 
-    _introC = VideoPlayerController.asset(widget.introPath)
-      ..setLooping(false)
-      ..addListener(_onIntroTick);
-    _loopC = VideoPlayerController.asset(widget.loopPath)..setLooping(true);
+    _loopC = VideoPlayerController.asset(
+      widget.loopPath,
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    )..setLooping(true);
 
     _initialize();
   }
@@ -53,7 +60,6 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
       await Future.wait([_introC.initialize(), _loopC.initialize()]);
       if (!mounted) return;
 
-      // 디코더 워밍업
       await _introC.play();
       await _introC.pause();
       await _loopC.play();
@@ -70,16 +76,17 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
 
   void _onIntroTick() {
     final v = _introC.value;
+    if (!v.isInitialized) return;
     if (v.hasError && _error == null) {
       setState(() => _error = v.errorDescription ?? 'Video error');
       return;
     }
-    if (v.isInitialized && !v.isPlaying && v.position >= v.duration) {
-      _startLoopAndHideIntro();
+    if (!v.isPlaying && v.position >= v.duration) {
+      _startLoop();
     }
   }
 
-  Future<void> _startLoopAndHideIntro() async {
+  Future<void> _startLoop() async {
     try {
       await _loopC.seekTo(Duration.zero);
       await _loopC.play();
@@ -104,18 +111,11 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
     super.dispose();
   }
 
-  void _goHome() {
-    if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
-  }
-
-  void _goPrev() => _goHome();
-
-  void _goNext() {
+  Future<void> _goPrev() async {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        pageBuilder: (c, a, b) => const LearnSet2Screen(),
+        pageBuilder: (c, a, b) => const LearnSet7Screen(),
         transitionsBuilder: (c, a, b, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
@@ -123,31 +123,29 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
     );
   }
 
-  KeyEventResult _onKeyEvent(FocusNode n, KeyEvent e) {
-    if (e is! KeyDownEvent) return KeyEventResult.ignored;
-    final k = e.logicalKey;
-    if (k == LogicalKeyboardKey.enter ||
-        k == LogicalKeyboardKey.numpadEnter ||
-        k == LogicalKeyboardKey.space) {
-      _goNext();
-      return KeyEventResult.handled;
-    }
-    if (k == LogicalKeyboardKey.escape) {
-      _goHome();
-      return KeyEventResult.handled;
-    }
-    if (k == LogicalKeyboardKey.keyP) {
-      _togglePause();
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
+  Future<void> _goNext() async {
+    GlobalSfx.instance.play('tap');
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (c, a, b) => const LearnSet9Screen(),
+        transitionsBuilder: (c, a, b, child) =>
+            FadeTransition(opacity: a, child: child),
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
   }
 
+  Future<void> _goHomeToSplash() async {
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+  }
+
+  // ▶❚❚: 영상 + BGM 동시 제어
   Future<void> _togglePause() async {
     final active = _showIntro ? _introC : _loopC;
     final bgm = GlobalBgm.instance;
 
-    // 영상 초기화 실패/에러 시 BGM만 토글
     if (!active.value.isInitialized || _error != null) {
       if (bgm.isPlaying) {
         await bgm.pause();
@@ -160,46 +158,65 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
     }
 
     if (active.value.isPlaying) {
-      // ▶ 재생중 → 둘 다 멈춤
       await Future.wait([active.pause(), bgm.pause()]);
       setState(() => _paused = true);
     } else {
-      // ❚❚ 멈춤 → 둘 다 재개
       await Future.wait([active.play(), bgm.resume()]);
       setState(() => _paused = false);
     }
   }
 
-  bool _isInControllerArea(Offset gp, Size sz) {
-    final scale = min(sz.width / baseW, sz.height / baseH);
-    final cW = baseW * scale,
-        cH = baseH * scale,
-        l = (sz.width - cW) / 2,
-        t = (sz.height - cH) / 2;
-    final w = _controllerBaseW * scale, h = _controllerBaseH * scale;
-    final x = l + (cW - controllerRightPx * scale) - w,
-        y = t + controllerTopPx * scale;
-    return Rect.fromLTWH(x, y, w, h).contains(gp);
+  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent) {
+      final k = event.logicalKey;
+      if (k == LogicalKeyboardKey.enter ||
+          k == LogicalKeyboardKey.numpadEnter ||
+          k == LogicalKeyboardKey.space) {
+        _goNext();
+        return KeyEventResult.handled;
+      }
+      if (k == LogicalKeyboardKey.escape) {
+        _goHomeToSplash();
+        return KeyEventResult.handled;
+      }
+      if (k == LogicalKeyboardKey.keyP) {
+        _togglePause();
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
   }
+
+  bool _isInControllerArea(Offset g, Size s) {
+    final scale = _calcScale(s);
+    final canvasW = baseW * scale, canvasH = baseH * scale;
+    final leftPad = (s.width - canvasW) / 2, topPad = (s.height - canvasH) / 2;
+    final w = _controllerBaseW * scale, h = _controllerBaseH * scale;
+    final x = leftPad + (canvasW - controllerRightPx * scale) - w;
+    final y = topPad + controllerTopPx * scale;
+    return Rect.fromLTWH(x, y, w, h).contains(g);
+  }
+
+  double _calcScale(Size s) => min(s.width / baseW, s.height / baseH);
 
   @override
   Widget build(BuildContext context) {
-    final ready = _ready && _error == null;
     final size = MediaQuery.of(context).size;
-    final scale = min(size.width / baseW, size.height / baseH);
-    final cW = baseW * scale,
-        cH = baseH * scale,
-        l = (size.width - cW) / 2,
-        t = (size.height - cH) / 2;
+    final scale = _calcScale(size);
+    final canvasW = baseW * scale, canvasH = baseH * scale;
+    final leftPad = (size.width - canvasW) / 2,
+        topPad = (size.height - canvasH) / 2;
 
-    return Focus(
-      autofocus: true,
-      onKeyEvent: _onKeyEvent,
-      child: GestureDetector(
-        behavior: HitTestBehavior.deferToChild,
-        onTapDown: (d) {
-          if (!_isInControllerArea(d.globalPosition, size)) _goNext();
-        },
+    final ready = _ready && _error == null;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.deferToChild,
+      onTapDown: (d) {
+        if (!_isInControllerArea(d.globalPosition, size)) _goNext();
+      },
+      child: Focus(
+        autofocus: true,
+        onKeyEvent: _onKeyEvent,
         child: Scaffold(
           backgroundColor: Colors.black,
           body: Stack(
@@ -234,6 +251,16 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
                 ),
               ] else
                 _loadingOrError(),
+
+              const Positioned(
+                right: 16,
+                bottom: 24,
+                child: Text(
+                  '탭 또는 Enter로 계속',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+              ),
+
               if (_error != null && Platform.isWindows)
                 const Positioned(
                   left: 16,
@@ -244,11 +271,12 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
                     style: TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                 ),
+
               Positioned(
-                left: l,
-                top: t,
-                width: cW,
-                height: cH,
+                left: leftPad,
+                top: topPad,
+                width: canvasW,
+                height: canvasH,
                 child: Stack(
                   children: [
                     Positioned(
@@ -259,14 +287,10 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
                         alignment: Alignment.topRight,
                         child: GameControllerBar(
                           isPaused: _paused,
-                          onHome: _goHome,
+                          onHome: _goHomeToSplash,
                           onPrev: _goPrev,
                           onNext: _goNext,
                           onPauseToggle: _togglePause,
-                          // 🔻 종료 시 BGM 정리(bgm_tracks의 숏컷 사용)
-                          onExit: () {
-                            GlobalBgm.instance.stopStory();
-                          },
                         ),
                       ),
                     ),
@@ -297,7 +321,7 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
                 Icon(Icons.error_outline, color: Colors.white70, size: 36),
                 SizedBox(height: 12),
                 Text(
-                  '영상을 불러올 수 없어요.\n탭/Enter로 계속 진행합니다.',
+                  '학습 영상을 불러올 수 없어요.\n탭/Enter로 계속 진행합니다.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.white70, fontSize: 16),
                 ),

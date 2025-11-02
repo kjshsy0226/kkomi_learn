@@ -5,7 +5,7 @@ import 'package:video_player/video_player.dart';
 import '../core/global_sfx.dart'; // ✅ 전역 SFX
 import '../models/learn_fruit.dart';
 import '../widgets/game_controller_bar.dart';
-import 'learn_set3_screen.dart';
+import 'learn_set9_screen.dart';
 import 'game_set3_screen.dart';
 
 class GameSet2Screen extends StatefulWidget {
@@ -244,7 +244,7 @@ class _GameSet2ScreenState extends State<GameSet2Screen>
     if (_history.isEmpty) {
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (c, a, b) => const LearnSet3Screen(),
+          pageBuilder: (c, a, b) => const LearnSet9Screen(),
           transitionsBuilder: (c, a, b, child) =>
               FadeTransition(opacity: a, child: child),
           transitionDuration: const Duration(milliseconds: 300),

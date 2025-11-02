@@ -435,7 +435,8 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
                   child: Image.asset(
                     _pngOf(fruit),
                     fit: BoxFit.fill,
-                    errorBuilder: (c, e, s) => const SizedBox.shrink(),
+                    errorBuilder: (context, error, stack) =>
+                        const SizedBox.shrink(),
                   ),
                 ),
               ),

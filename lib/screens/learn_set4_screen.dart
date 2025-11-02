@@ -1,35 +1,37 @@
-// lib/screens/learn_set1_screen.dart
+// lib/screens/learn_set4_screen.dart
+// (여기서 게임1로 넘어갈 때 스토리 BGM stop)
 import 'dart:io' show Platform;
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
-import '../core/bgm_tracks.dart'; // ✅ BGM 숏컷(ensureStory/stopStory)
+import '../core/bgm_tracks.dart'; // ✅ 숏컷 + GlobalBgm re-export (ensureStory/stopStory)
 import '../widgets/game_controller_bar.dart';
-import 'learn_set2_screen.dart';
+import 'learn_set3_screen.dart';
+import 'game_set1_screen.dart';
 
-class LearnSet1Screen extends StatefulWidget {
-  const LearnSet1Screen({
+class LearnSet4Screen extends StatefulWidget {
+  const LearnSet4Screen({
     super.key,
-    this.introPath = 'assets/videos/scene/set1_scene.mp4',
-    this.loopPath = 'assets/videos/scene/set1_scene_loop.mp4',
+    this.introPath = 'assets/videos/scene/set4_scene.mp4',
+    this.loopPath = 'assets/videos/scene/set4_scene_loop.mp4',
   });
 
-  final String introPath;
-  final String loopPath;
+  final String introPath, loopPath;
 
   @override
-  State<LearnSet1Screen> createState() => _LearnSet1ScreenState();
+  State<LearnSet4Screen> createState() => _LearnSet4ScreenState();
 }
 
-class _LearnSet1ScreenState extends State<LearnSet1Screen> {
-  static const double baseW = 1920, baseH = 1080;
-  static const double controllerTopPx = 35, controllerRightPx = 40;
+class _LearnSet4ScreenState extends State<LearnSet4Screen> {
+  static const double baseW = 1920,
+      baseH = 1080,
+      controllerTopPx = 35,
+      controllerRightPx = 40;
   static const double _controllerBaseW = 460, _controllerBaseH = 135;
 
-  late final VideoPlayerController _introC;
-  late final VideoPlayerController _loopC;
+  late final VideoPlayerController _introC, _loopC;
   bool _ready = false, _showIntro = true, _paused = false;
   String? _error;
 
@@ -37,14 +39,13 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
   void initState() {
     super.initState();
 
-    // ✅ 스토리 BGM 보장(키/경로 하드코딩 금지: 숏컷 사용)
+    // ✅ 스토리 BGM 보장(키/경로는 숏컷이 관리)
     GlobalBgm.instance.ensureStory();
 
     _introC = VideoPlayerController.asset(widget.introPath)
       ..setLooping(false)
       ..addListener(_onIntroTick);
     _loopC = VideoPlayerController.asset(widget.loopPath)..setLooping(true);
-
     _initialize();
   }
 
@@ -109,13 +110,26 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
     Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
   }
 
-  void _goPrev() => _goHome();
-
-  void _goNext() {
+  void _goPrev() {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        pageBuilder: (c, a, b) => const LearnSet2Screen(),
+        pageBuilder: (c, a, b) => const LearnSet3Screen(),
+        transitionsBuilder: (c, a, b, child) =>
+            FadeTransition(opacity: a, child: child),
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
+  }
+
+  Future<void> _goNext() async {
+    // ▶ 게임1 진입 전 스토리 BGM 중단(숏컷)
+    await GlobalBgm.instance.stopStory();
+
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (c, a, b) => const GameSet1Screen(),
         transitionsBuilder: (c, a, b, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
@@ -171,14 +185,13 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
   }
 
   bool _isInControllerArea(Offset gp, Size sz) {
-    final scale = min(sz.width / baseW, sz.height / baseH);
-    final cW = baseW * scale,
-        cH = baseH * scale,
+    final s = min(sz.width / baseW, sz.height / baseH);
+    final cW = baseW * s,
+        cH = baseH * s,
         l = (sz.width - cW) / 2,
         t = (sz.height - cH) / 2;
-    final w = _controllerBaseW * scale, h = _controllerBaseH * scale;
-    final x = l + (cW - controllerRightPx * scale) - w,
-        y = t + controllerTopPx * scale;
+    final w = _controllerBaseW * s, h = _controllerBaseH * s;
+    final x = l + (cW - controllerRightPx * s) - w, y = t + controllerTopPx * s;
     return Rect.fromLTWH(x, y, w, h).contains(gp);
   }
 
@@ -186,9 +199,9 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
   Widget build(BuildContext context) {
     final ready = _ready && _error == null;
     final size = MediaQuery.of(context).size;
-    final scale = min(size.width / baseW, size.height / baseH);
-    final cW = baseW * scale,
-        cH = baseH * scale,
+    final s = min(size.width / baseW, size.height / baseH);
+    final cW = baseW * s,
+        cH = baseH * s,
         l = (size.width - cW) / 2,
         t = (size.height - cH) / 2;
 
@@ -234,6 +247,7 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
                 ),
               ] else
                 _loadingOrError(),
+
               if (_error != null && Platform.isWindows)
                 const Positioned(
                   left: 16,
@@ -244,6 +258,7 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
                     style: TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                 ),
+
               Positioned(
                 left: l,
                 top: t,
@@ -252,18 +267,18 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
                 child: Stack(
                   children: [
                     Positioned(
-                      top: controllerTopPx * scale,
-                      right: controllerRightPx * scale,
+                      top: controllerTopPx * s,
+                      right: controllerRightPx * s,
                       child: Transform.scale(
-                        scale: scale,
+                        scale: s,
                         alignment: Alignment.topRight,
                         child: GameControllerBar(
                           isPaused: _paused,
                           onHome: _goHome,
                           onPrev: _goPrev,
-                          onNext: _goNext,
-                          onPauseToggle: _togglePause,
-                          // 🔻 종료 시 BGM 정리(bgm_tracks의 숏컷 사용)
+                          onNext: _goNext, // ▶ 게임 진입(스토리 BGM stop)
+                          onPauseToggle: _togglePause, // ❚❚ BGM도 함께 제어
+                          // 선택: 종료 시에도 스토리 BGM 정리해두면 안전
                           onExit: () {
                             GlobalBgm.instance.stopStory();
                           },

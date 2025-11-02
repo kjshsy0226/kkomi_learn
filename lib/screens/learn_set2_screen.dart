@@ -1,117 +1,129 @@
 // lib/screens/learn_set2_screen.dart
+// (스토리 BGM ensure, 일반 내비: 1 ↔ 2 ↔ 3)
 import 'dart:io' show Platform;
-// import 'dart:async'; // 더 이상 unawaited 안 씀: 필요 없으면 주석/삭제
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
-import '../core/global_sfx.dart'; // ✅ 전역 SFX
+import '../core/bgm_tracks.dart'; // ✅ 숏컷으로 통일 (ensureStory/stopStory)
 import '../widgets/game_controller_bar.dart';
-import 'game_set1_screen.dart';
+import 'learn_set1_screen.dart';
 import 'learn_set3_screen.dart';
 
 class LearnSet2Screen extends StatefulWidget {
   const LearnSet2Screen({
     super.key,
-    this.videoPath = 'assets/videos/scene/set2_scene.mp4',
+    this.introPath = 'assets/videos/scene/set2_scene.mp4',
+    this.loopPath = 'assets/videos/scene/set2_scene_loop.mp4',
   });
 
-  final String videoPath;
+  final String introPath;
+  final String loopPath;
 
   @override
   State<LearnSet2Screen> createState() => _LearnSet2ScreenState();
 }
 
-class _LearnSet2ScreenState extends State<LearnSet2Screen>
-    with SingleTickerProviderStateMixin {
-  static const double baseW = 1920;
-  static const double baseH = 1080;
-  static const double controllerTopPx = 35;
-  static const double controllerRightPx = 40;
-  static const double _controllerBaseW = 460;
-  static const double _controllerBaseH = 135;
+class _LearnSet2ScreenState extends State<LearnSet2Screen> {
+  static const double baseW = 1920,
+      baseH = 1080,
+      controllerTopPx = 35,
+      controllerRightPx = 40;
+  static const double _controllerBaseW = 460, _controllerBaseH = 135;
 
-  late final VideoPlayerController _c;
-  bool _inited = false;
+  late final VideoPlayerController _introC, _loopC;
+  bool _ready = false, _showIntro = true, _paused = false;
   String? _error;
-  bool _ended = false;
-  bool _paused = false;
-
-  late final AnimationController _cueCtrl;
-  late final Animation<double> _cueOpacity;
 
   @override
   void initState() {
     super.initState();
 
-    _cueCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-    _cueOpacity = CurvedAnimation(parent: _cueCtrl, curve: Curves.easeInOut);
+    // ✅ 스토리 BGM 보장(키/경로는 숏컷이 관리)
+    GlobalBgm.instance.ensureStory();
 
-    _c = VideoPlayerController.asset(widget.videoPath)
+    _introC = VideoPlayerController.asset(widget.introPath)
       ..setLooping(false)
-      ..addListener(_onTick);
+      ..addListener(_onIntroTick);
+    _loopC = VideoPlayerController.asset(widget.loopPath)..setLooping(true);
 
     _initialize();
   }
 
   Future<void> _initialize() async {
     try {
-      await _c.initialize();
+      await Future.wait([_introC.initialize(), _loopC.initialize()]);
       if (!mounted) return;
 
-      await _c.play();
-      await _c.pause();
+      // 디코더 워밍업
+      await _introC.play();
+      await _introC.pause();
+      await _loopC.play();
+      await _loopC.pause();
 
-      setState(() {
-        _inited = true;
-        _paused = false;
-      });
+      setState(() => _ready = true);
 
-      await _c.play();
+      await _introC.seekTo(Duration.zero);
+      await _introC.play();
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = '$e';
-        _inited = false;
-      });
+      if (mounted) setState(() => _error = '$e');
     }
   }
 
-  void _onTick() {
-    final v = _c.value;
+  void _onIntroTick() {
+    final v = _introC.value;
     if (v.hasError && _error == null) {
       setState(() => _error = v.errorDescription ?? 'Video error');
+      return;
     }
     if (v.isInitialized && !v.isPlaying && v.position >= v.duration) {
-      if (!_ended) {
-        _ended = true;
-        _c.pause();
-        _startCueBlink();
-        setState(() => _paused = true);
-      }
+      _startLoopAndHideIntro();
     }
   }
 
-  void _startCueBlink() {
-    _cueCtrl.forward(from: 0).then((_) {
+  Future<void> _startLoopAndHideIntro() async {
+    try {
+      await _loopC.seekTo(Duration.zero);
+      await _loopC.play();
+      try {
+        await _introC.pause();
+      } catch (_) {}
       if (!mounted) return;
-      _cueCtrl.repeat(reverse: true);
-    });
+      setState(() {
+        _showIntro = false;
+        _paused = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    }
   }
 
   @override
   void dispose() {
-    _c.removeListener(_onTick);
-    _c.dispose();
-    _cueCtrl.dispose();
+    _introC.removeListener(_onIntroTick);
+    _introC.dispose();
+    _loopC.dispose();
     super.dispose();
   }
 
-  // ── 네비게이션 ────────────────────────────────────────────────────────
+  void _goHome() {
+    if (!mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
+  }
+
+  void _goPrev() {
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        pageBuilder: (c, a, b) => const LearnSet1Screen(),
+        transitionsBuilder: (c, a, b, child) =>
+            FadeTransition(opacity: a, child: child),
+        transitionDuration: const Duration(milliseconds: 300),
+      ),
+    );
+  }
+
   void _goNext() {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
@@ -124,216 +136,151 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
     );
   }
 
-  Future<void> _goPrev() async {
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (c, a, b) => const GameSet1Screen(
-          initialIndex: 4, // radish
-          startInPlay: true,
-        ),
-        transitionsBuilder: (c, a, b, child) =>
-            FadeTransition(opacity: a, child: child),
-        transitionDuration: const Duration(milliseconds: 300),
-      ),
-    );
-  }
-
-  Future<void> _goHomeToSplash() async {
-    if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
-  }
-
-  // ── 컨트롤러: 재생/일시정지 ───────────────────────────────────────────
-  Future<void> _togglePause() async {
-    if (!_inited || !_c.value.isInitialized) return;
-    if (_c.value.isPlaying) {
-      await _c.pause();
-      setState(() => _paused = true);
-    } else {
-      if (_ended) {
-        _ended = false;
-        _cueCtrl.stop();
-      }
-      await _c.play();
-      setState(() => _paused = false);
+  KeyEventResult _onKeyEvent(FocusNode n, KeyEvent e) {
+    if (e is! KeyDownEvent) return KeyEventResult.ignored;
+    final k = e.logicalKey;
+    if (k == LogicalKeyboardKey.enter ||
+        k == LogicalKeyboardKey.numpadEnter ||
+        k == LogicalKeyboardKey.space) {
+      _goNext();
+      return KeyEventResult.handled;
     }
-  }
-
-  // 키보드: Enter / Space 진행, Esc 홈, P 일시정지
-  KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is KeyDownEvent) {
-      final k = event.logicalKey;
-      if (k == LogicalKeyboardKey.enter ||
-          k == LogicalKeyboardKey.numpadEnter ||
-          k == LogicalKeyboardKey.space) {
-        if (_ended) {
-          GlobalSfx.instance.play('tap'); // ✅ 아웃라인 상태면 탭 사운드
-        }
-        _goNext();
-        return KeyEventResult.handled;
-      }
-      if (k == LogicalKeyboardKey.escape) {
-        _goHomeToSplash();
-        return KeyEventResult.handled;
-      }
-      if (k == LogicalKeyboardKey.keyP) {
-        _togglePause();
-        return KeyEventResult.handled;
-      }
+    if (k == LogicalKeyboardKey.escape) {
+      _goHome();
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.keyP) {
+      _togglePause();
+      return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
   }
 
-  bool _isInControllerArea(Offset globalPos, Size screenSize) {
-    final scale = _calcScale(screenSize);
-    final canvasW = baseW * scale;
-    final canvasH = baseH * scale;
-    final leftPad = (screenSize.width - canvasW) / 2;
-    final topPad = (screenSize.height - canvasH) / 2;
+  Future<void> _togglePause() async {
+    final active = _showIntro ? _introC : _loopC;
+    final bgm = GlobalBgm.instance;
 
-    final ctrlW = _controllerBaseW * scale;
-    final ctrlH = _controllerBaseH * scale;
+    // 영상 초기화 실패/에러면 BGM만 토글
+    if (!active.value.isInitialized || _error != null) {
+      if (bgm.isPlaying) {
+        await bgm.pause();
+        setState(() => _paused = true);
+      } else {
+        await bgm.resume();
+        setState(() => _paused = false);
+      }
+      return;
+    }
 
-    final ctrlLeft = leftPad + (canvasW - controllerRightPx * scale) - ctrlW;
-    final ctrlTop = topPad + controllerTopPx * scale;
-    final rect = Rect.fromLTWH(ctrlLeft, ctrlTop, ctrlW, ctrlH);
-    return rect.contains(globalPos);
+    if (active.value.isPlaying) {
+      // ▶ 재생중 → 둘 다 멈춤
+      await Future.wait([active.pause(), bgm.pause()]);
+      setState(() => _paused = true);
+    } else {
+      // ❚❚ 멈춤 → 둘 다 재개
+      await Future.wait([active.play(), bgm.resume()]);
+      setState(() => _paused = false);
+    }
   }
 
-  double _calcScale(Size screenSize) {
-    return min(screenSize.width / baseW, screenSize.height / baseH);
+  bool _isInControllerArea(Offset gp, Size sz) {
+    final s = min(sz.width / baseW, sz.height / baseH);
+    final cW = baseW * s,
+        cH = baseH * s,
+        l = (sz.width - cW) / 2,
+        t = (sz.height - cH) / 2;
+    final w = _controllerBaseW * s, h = _controllerBaseH * s;
+    final x = l + (cW - controllerRightPx * s) - w, y = t + controllerTopPx * s;
+    return Rect.fromLTWH(x, y, w, h).contains(gp);
   }
 
   @override
   Widget build(BuildContext context) {
-    final ready = _inited && _c.value.isInitialized && _error == null;
-    final screenSize = MediaQuery.of(context).size;
+    final ready = _ready && _error == null;
+    final size = MediaQuery.of(context).size;
+    final s = min(size.width / baseW, size.height / baseH);
+    final cW = baseW * s,
+        cH = baseH * s,
+        l = (size.width - cW) / 2,
+        t = (size.height - cH) / 2;
 
-    final scale = _calcScale(screenSize);
-    final canvasW = baseW * scale;
-    final canvasH = baseH * scale;
-    final leftPad = (screenSize.width - canvasW) / 2;
-    final topPad = (screenSize.height - canvasH) / 2;
-
-    return GestureDetector(
-      behavior: HitTestBehavior.deferToChild,
-      onTapDown: (d) {
-        // 컨트롤러 영역 클릭은 무시
-        if (_isInControllerArea(d.globalPosition, screenSize)) return;
-
-        // ✅ 영상 끝(아웃라인)일 때만 탭 사운드 재생
-        if (_ended) {
-          GlobalSfx.instance.play('tap');
-        }
-
-        _goNext(); // 즉시 진행 (사운드는 전역이므로 끊기지 않음)
-      },
-      child: Focus(
-        autofocus: true,
-        onKeyEvent: _onKeyEvent,
+    return Focus(
+      autofocus: true,
+      onKeyEvent: _onKeyEvent,
+      child: GestureDetector(
+        behavior: HitTestBehavior.deferToChild,
+        onTapDown: (d) {
+          if (!_isInControllerArea(d.globalPosition, size)) _goNext();
+        },
         child: Scaffold(
           backgroundColor: Colors.black,
           body: Stack(
             fit: StackFit.expand,
             children: [
-              // 1) 본편 영상
-              if (ready)
-                FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: _c.value.size.width,
-                    height: _c.value.size.height,
-                    child: VideoPlayer(_c),
-                  ),
-                )
-              else
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.black, Color(0xFF101016)],
+              if (ready) ...[
+                Positioned.fill(
+                  child: FittedBox(
+                    fit: BoxFit.cover,
+                    child: SizedBox(
+                      width: _loopC.value.size.width,
+                      height: _loopC.value.size.height,
+                      child: VideoPlayer(_loopC),
                     ),
                   ),
-                  child: Center(
-                    child: _error == null
-                        ? const CircularProgressIndicator()
-                        : Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(
-                                Icons.error_outline,
-                                color: Colors.white70,
-                                size: 36,
-                              ),
-                              SizedBox(height: 12),
-                              Text(
-                                '두 번째 학습 영상을 불러올 수 없어요.\n탭/Enter로 계속 진행합니다.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ],
-                          ),
+                ),
+                Positioned.fill(
+                  child: Visibility(
+                    visible: _showIntro,
+                    maintainState: true,
+                    maintainAnimation: true,
+                    maintainSize: true,
+                    child: FittedBox(
+                      fit: BoxFit.cover,
+                      child: SizedBox(
+                        width: _introC.value.size.width,
+                        height: _introC.value.size.height,
+                        child: VideoPlayer(_introC),
+                      ),
+                    ),
                   ),
                 ),
+              ] else
+                _loadingOrError(),
 
-              // 2) 영상 끝났을 때 터치 유도 오버레이(꼬미 아웃라인)
-              if (_ended)
-                FadeTransition(
-                  opacity: _cueOpacity,
-                  child: Image.asset(
-                    'assets/images/kkomi_outline.png', // 1920x1080
-                    fit: BoxFit.cover,
-                  ),
-                ),
-
-              // 3) 우하단 힌트 텍스트
-              const Positioned(
-                right: 16,
-                bottom: 24,
-                child: Text(
-                  '탭 또는 Enter로 계속',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-              ),
-
-              // 4) Windows 코덱 힌트
               if (_error != null && Platform.isWindows)
                 const Positioned(
                   left: 16,
                   bottom: 24,
                   right: 16,
                   child: Text(
-                    '힌트: Windows 배포 시 MP4(H.264 + AAC) 권장.\n'
-                    '다른 코덱/컨테이너는 재생이 안 될 수 있어요.',
+                    '힌트: Windows 배포 시 MP4(H.264 + AAC) 권장.\n다른 코덱/컨테이너는 재생이 안 될 수 있어요.',
                     style: TextStyle(color: Colors.white38, fontSize: 12),
                   ),
                 ),
 
-              // 5) 컨트롤러
               Positioned(
-                left: leftPad,
-                top: topPad,
-                width: canvasW,
-                height: canvasH,
+                left: l,
+                top: t,
+                width: cW,
+                height: cH,
                 child: Stack(
                   children: [
                     Positioned(
-                      top: controllerTopPx * scale,
-                      right: controllerRightPx * scale,
+                      top: controllerTopPx * s,
+                      right: controllerRightPx * s,
                       child: Transform.scale(
-                        scale: scale,
+                        scale: s,
                         alignment: Alignment.topRight,
                         child: GameControllerBar(
                           isPaused: _paused,
-                          onHome: _goHomeToSplash,
+                          onHome: _goHome,
                           onPrev: _goPrev,
                           onNext: _goNext,
                           onPauseToggle: _togglePause,
+                          // 🔻 종료 시에도 BGM 정리
+                          onExit: () {
+                            GlobalBgm.instance.stopStory();
+                          },
                         ),
                       ),
                     ),
@@ -346,4 +293,30 @@ class _LearnSet2ScreenState extends State<LearnSet2Screen>
       ),
     );
   }
+
+  Widget _loadingOrError() => Container(
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Colors.black, Color(0xFF101016)],
+      ),
+    ),
+    child: Center(
+      child: _error == null
+          ? const CircularProgressIndicator()
+          : const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.error_outline, color: Colors.white70, size: 36),
+                SizedBox(height: 12),
+                Text(
+                  '영상을 불러올 수 없어요.\n탭/Enter로 계속 진행합니다.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                ),
+              ],
+            ),
+    ),
+  );
 }

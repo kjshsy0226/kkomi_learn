@@ -26,7 +26,7 @@ class LearnSet1Screen extends StatefulWidget {
 class _LearnSet1ScreenState extends State<LearnSet1Screen> {
   static const double baseW = 1920, baseH = 1080;
   static const double controllerTopPx = 35, controllerRightPx = 40;
-  static const double _controllerBaseW = 460, _controllerBaseH = 135;
+  static const double _controllerBaseW = 580, _controllerBaseH = 135;
 
   late final VideoPlayerController _introC;
   late final VideoPlayerController _loopC;
@@ -106,6 +106,7 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
 
   void _goHome() {
     if (!mounted) return;
+    GlobalBgm.instance.stopStory();
     Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
   }
 

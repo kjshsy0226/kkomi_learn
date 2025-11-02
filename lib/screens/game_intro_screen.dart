@@ -11,7 +11,15 @@ class GameIntroScreen extends StatelessWidget {
     return IntroLoopScreen(
       introVideoAsset: 'assets/videos/game_intro/intro.mp4',
       loopVideoAsset: 'assets/videos/game_intro/intro_loop.mp4',
-      bgmAsset: 'audio/bgm/intro_theme.mp3', // 공통 BGM
+      bgmAsset: 'audio/bgm/intro_theme.mp3',
+
+      // ▶ 메인(인트로) 동안 50% 재생
+      bgmStartOnLoop: false, // 인트로부터 재생
+      bgmIntroVolume: 0.3, // 인트로 볼륨 50%
+      // ▶ 루프로 넘어갈 때 50% → 100% 페이드인
+      bgmTargetVolume: 1.0,
+      bgmFadeInMs: 1500, // 1.5초 정도 자연스럽게
+
       onNext: () {
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(

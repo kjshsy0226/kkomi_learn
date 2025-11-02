@@ -30,7 +30,7 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
   // 기준 캔버스/컨트롤러 좌표
   static const double baseW = 1920, baseH = 1080;
   static const double controllerTopPx = 35, controllerRightPx = 40;
-  static const double _controllerBaseW = 460, _controllerBaseH = 135;
+  static const double _controllerBaseW = 580, _controllerBaseH = 135;
 
   // 비디오
   late final VideoPlayerController _introC; // 단발
@@ -313,16 +313,6 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
                     fit: BoxFit.cover,
                   ),
                 ),
-
-              // 진행 힌트
-              const Positioned(
-                right: 16,
-                bottom: 24,
-                child: Text(
-                  '탭 또는 Enter로 계속',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-              ),
 
               // Windows 코덱 힌트
               if (_error != null && Platform.isWindows)

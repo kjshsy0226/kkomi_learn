@@ -1,4 +1,5 @@
-// lib/widgets/intro_loop_screen.dart
+// lib/screens/intro_loop_screen.dart
+import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,18 +13,27 @@ class IntroLoopScreen extends StatefulWidget {
     required this.loopVideoAsset,
     this.bgmAsset, // null이면 BGM 사용 안 함
     required this.onNext, // 탭/엔터로 다음으로
-    this.hintText = '탭 또는 Enter로 계속',
     this.errorText = '영상을 불러올 수 없어요.\n탭/Enter로 계속 진행합니다.',
     this.loopOnStart = false, // true면 인트로 생략하고 loop부터 재생
+    // ▼ BGM 동작 제어
+    this.bgmStartOnLoop = true, // true: 인트로 동안 BGM off → loop에서 페이드 인
+    this.bgmIntroVolume = 0.2, // 인트로 깔음(0~1). bgmStartOnLoop=true면 무시
+    this.bgmTargetVolume = 1.0, // 루프 목표 볼륨
+    this.bgmFadeInMs = 1200, // 루프 진입 페이드 인 시간(ms)
   });
 
   final String introVideoAsset;
   final String loopVideoAsset;
   final String? bgmAsset;
   final VoidCallback onNext;
-  final String hintText;
   final String errorText;
   final bool loopOnStart;
+
+  // BGM 파라미터
+  final bool bgmStartOnLoop;
+  final double bgmIntroVolume;
+  final double bgmTargetVolume;
+  final int bgmFadeInMs;
 
   @override
   State<IntroLoopScreen> createState() => _IntroLoopScreenState();
@@ -37,6 +47,9 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
   bool _ready = false;
   bool _showIntro = true;
   String? _error;
+
+  Timer? _fadeTimer; // 볼륨 페이드용
+  double _bgmVol = 0.0; // 현재 BGM 볼륨(로컬 상태로만 관리)
 
   @override
   void initState() {
@@ -70,8 +83,17 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
 
       if (widget.bgmAsset != null) {
         await _bgm.setReleaseMode(ReleaseMode.loop);
-        await _bgm.setVolume(1.0);
-        await _bgm.play(AssetSource(widget.bgmAsset!));
+
+        if (widget.bgmStartOnLoop) {
+          // 인트로에선 재생 안 함 (멘트 방해 X)
+          await _bgm.stop();
+          _bgmVol = 0.0; // 상태 초기화
+        } else {
+          // 인트로부터 아주 작게 재생
+          final v = _clamp01(widget.bgmIntroVolume);
+          await _setBgmVolume(v);
+          await _bgm.play(AssetSource(widget.bgmAsset!));
+        }
       }
 
       setState(() => _ready = true);
@@ -80,6 +102,7 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
         _showIntro = false;
         await _loopC.seekTo(Duration.zero);
         await _loopC.play();
+        await _maybeStartOrFadeBgmOnLoopEntry();
       } else {
         await _introC.seekTo(Duration.zero);
         await _introC.play();
@@ -113,13 +136,67 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
       } catch (_) {}
       if (!mounted) return;
       setState(() => _showIntro = false);
+
+      // 루프 진입 시점에 BGM 시작/페이드
+      await _maybeStartOrFadeBgmOnLoopEntry();
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     }
   }
 
+  Future<void> _maybeStartOrFadeBgmOnLoopEntry() async {
+    if (widget.bgmAsset == null) return;
+
+    final target = _clamp01(widget.bgmTargetVolume);
+    final fadeMs = widget.bgmFadeInMs.clamp(0, 10000);
+
+    if (widget.bgmStartOnLoop) {
+      // 인트로엔 미재생 → 루프부터 0에서 시작해 페이드 인
+      await _setBgmVolume(0.0);
+      await _bgm.play(AssetSource(widget.bgmAsset!));
+      if (fadeMs > 0) {
+        _fadeVolume(from: 0.0, to: target, durationMs: fadeMs);
+      } else {
+        await _setBgmVolume(target);
+      }
+    } else {
+      // 인트로 동안 낮게 재생 중 → 루프에서 목표까지 페이드
+      final currentVol = _bgmVol; // 로컬 상태 사용
+      if (fadeMs > 0) {
+        _fadeVolume(from: currentVol, to: target, durationMs: fadeMs);
+      } else {
+        await _setBgmVolume(target);
+      }
+    }
+  }
+
+  void _fadeVolume({
+    required double from,
+    required double to,
+    required int durationMs,
+  }) {
+    _fadeTimer?.cancel();
+
+    final steps = (durationMs / 16).clamp(1, 1000).round(); // ~60fps
+    final stepDt = Duration(milliseconds: (durationMs / steps).round());
+    int tick = 0;
+
+    _fadeTimer = Timer.periodic(stepDt, (t) async {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      tick++;
+      final ratio = (tick / steps).clamp(0.0, 1.0);
+      final v = from + (to - from) * ratio;
+      await _setBgmVolume(v);
+      if (tick >= steps) t.cancel();
+    });
+  }
+
   @override
   void dispose() {
+    _fadeTimer?.cancel();
     _introC.removeListener(_onIntroTick);
     _introC.dispose();
     _loopC.dispose();
@@ -130,6 +207,7 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
 
   Future<void> _stopAllAndNext() async {
     try {
+      _fadeTimer?.cancel();
       await _introC.pause();
       await _loopC.pause();
       await _bgm.stop();
@@ -233,15 +311,6 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
                   ),
                 ),
 
-              Positioned(
-                right: 16,
-                bottom: 24,
-                child: Text(
-                  widget.hintText,
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-              ),
-
               if (_error != null && Platform.isWindows)
                 const Positioned(
                   left: 16,
@@ -257,5 +326,15 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
         ),
       ),
     );
+  }
+
+  // ── 유틸 ──────────────────────────────────────────────────────────────
+  double _clamp01(double v) => v < 0 ? 0 : (v > 1 ? 1 : v);
+
+  Future<void> _setBgmVolume(double v) async {
+    _bgmVol = _clamp01(v);
+    try {
+      await _bgm.setVolume(_bgmVol);
+    } catch (_) {}
   }
 }

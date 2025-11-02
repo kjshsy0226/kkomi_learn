@@ -30,7 +30,7 @@ class _LearnSet3ScreenState extends State<LearnSet3Screen> {
       baseH = 1080,
       controllerTopPx = 35,
       controllerRightPx = 40;
-  static const double _controllerBaseW = 460, _controllerBaseH = 135;
+  static const double _controllerBaseW = 580, _controllerBaseH = 135;
 
   late final VideoPlayerController _introC, _loopC;
   bool _ready = false, _showIntro = true, _paused = false;

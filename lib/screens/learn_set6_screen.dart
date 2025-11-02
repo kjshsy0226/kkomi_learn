@@ -29,7 +29,7 @@ class _LearnSet6ScreenState extends State<LearnSet6Screen> {
   // 기준 캔버스/컨트롤러 좌표
   static const double baseW = 1920, baseH = 1080;
   static const double controllerTopPx = 35, controllerRightPx = 40;
-  static const double _controllerBaseW = 460, _controllerBaseH = 135;
+  static const double _controllerBaseW = 580, _controllerBaseH = 135;
 
   // 비디오
   late final VideoPlayerController _introC;

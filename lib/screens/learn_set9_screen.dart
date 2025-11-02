@@ -1,5 +1,6 @@
-// (여기서만 Next 때 스토리 BGM stop → GameIntroScreen으로 이동, 아웃라인 없음)
-// ▶❚❚ = 영상+BGM 동시 제어 (6~8과 동일)
+// lib/screens/learn_set9_screen.dart
+// (여기서만 Next 때 스토리 BGM stop → GameIntroScreen으로 이동)
+// ▶❚❚ = 영상+BGM 동시 제어
 import 'dart:io' show Platform;
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -7,8 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
 import '../core/global_sfx.dart';
-import '../core/bgm_tracks.dart'; // ✅ BGM 토글용(GlobalBgm)
-import '../core/global_bgm.dart'; // ✅ Next에서 stop용
+import '../core/bgm_tracks.dart'; // ✅ 스토리 BGM 숏컷(ensureStory/stop은 여기서만)
+
 import '../widgets/game_controller_bar.dart';
 import 'learn_set8_screen.dart';
 import 'game_intro_screen.dart';
@@ -30,7 +31,7 @@ class LearnSet9Screen extends StatefulWidget {
 class _LearnSet9ScreenState extends State<LearnSet9Screen> {
   static const double baseW = 1920, baseH = 1080;
   static const double controllerTopPx = 35, controllerRightPx = 40;
-  static const double _controllerBaseW = 460, _controllerBaseH = 135;
+  static const double _controllerBaseW = 580, _controllerBaseH = 135;
 
   late final VideoPlayerController _introC;
   late final VideoPlayerController _loopC;
@@ -40,6 +41,10 @@ class _LearnSet9ScreenState extends State<LearnSet9Screen> {
   @override
   void initState() {
     super.initState();
+
+    // ✅ 게임 → 학습(씬9) 복귀 시 스토리 BGM 보장 + 재개
+    GlobalBgm.instance.ensureStory(); // (volume, restart 옵션 필요시 지정)
+    GlobalBgm.instance.resume();
 
     _introC =
         VideoPlayerController.asset(
@@ -62,6 +67,7 @@ class _LearnSet9ScreenState extends State<LearnSet9Screen> {
       await Future.wait([_introC.initialize(), _loopC.initialize()]);
       if (!mounted) return;
 
+      // 디코더 워밍업
       await _introC.play();
       await _introC.pause();
       await _loopC.play();
@@ -110,6 +116,7 @@ class _LearnSet9ScreenState extends State<LearnSet9Screen> {
     _introC.removeListener(_onIntroTick);
     _introC.dispose();
     _loopC.dispose();
+    // 🔸 여기서는 스토리 BGM을 끄지 않는다(홈/게임 인트로 이동 시에만 stop)
     super.dispose();
   }
 
@@ -255,15 +262,6 @@ class _LearnSet9ScreenState extends State<LearnSet9Screen> {
                 ),
               ] else
                 _loadingOrError(),
-
-              const Positioned(
-                right: 16,
-                bottom: 24,
-                child: Text(
-                  '탭 또는 Enter로 계속',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-              ),
 
               if (_error != null && Platform.isWindows)
                 const Positioned(

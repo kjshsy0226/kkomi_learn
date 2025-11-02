@@ -28,7 +28,7 @@ class LearnSet8Screen extends StatefulWidget {
 class _LearnSet8ScreenState extends State<LearnSet8Screen> {
   static const double baseW = 1920, baseH = 1080;
   static const double controllerTopPx = 35, controllerRightPx = 40;
-  static const double _controllerBaseW = 460, _controllerBaseH = 135;
+  static const double _controllerBaseW = 580, _controllerBaseH = 135;
 
   late final VideoPlayerController _introC;
   late final VideoPlayerController _loopC;
@@ -251,15 +251,6 @@ class _LearnSet8ScreenState extends State<LearnSet8Screen> {
                 ),
               ] else
                 _loadingOrError(),
-
-              const Positioned(
-                right: 16,
-                bottom: 24,
-                child: Text(
-                  '탭 또는 Enter로 계속',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-              ),
 
               if (_error != null && Platform.isWindows)
                 const Positioned(

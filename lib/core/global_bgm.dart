@@ -61,7 +61,7 @@ class GlobalBgm {
   }
 
   /// 선택: 앱 시작시 미리 호출하고 싶으면 사용
-  Future<void> init({double volume = 1.0, bool loop = true}) async {
+  Future<void> init({double volume = 0.0, bool loop = true}) async {
     await _bootstrap(volume: volume, loop: loop);
   }
 

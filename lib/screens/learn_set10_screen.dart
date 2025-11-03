@@ -1,32 +1,34 @@
-// lib/screens/learn_set9_screen.dart
-// (BGM 건드리지 않음: ensure/stop X, ▶❚❚ = 영상+BGM 동시 제어, 아웃라인 없음)
+// lib/screens/learn_set10_screen.dart
+// (여기서만 Next 때 스토리 BGM stop → GameIntroScreen으로 이동)
+// ▶❚❚ = 영상+BGM 동시 제어
 import 'dart:io' show Platform;
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
-import '../core/bgm_tracks.dart'; // GlobalBgm (pause/resume만 사용)
 import '../core/global_sfx.dart';
-import '../widgets/game_controller_bar.dart';
-import 'learn_set8_screen.dart';
-import 'learn_set10_screen.dart';
+import '../core/bgm_tracks.dart'; // ✅ 스토리 BGM 숏컷(ensureStory/stop은 여기서만)
 
-class LearnSet9Screen extends StatefulWidget {
-  const LearnSet9Screen({
+import '../widgets/game_controller_bar.dart';
+import 'learn_set9_screen.dart';
+import 'game_intro_screen.dart';
+
+class LearnSet10Screen extends StatefulWidget {
+  const LearnSet10Screen({
     super.key,
-    this.introPath = 'assets/videos/scene/set9_scene.mp4',
-    this.loopPath = 'assets/videos/scene/set9_scene_loop.mp4',
+    this.introPath = 'assets/videos/scene/set10_scene.mp4',
+    this.loopPath = 'assets/videos/scene/set10_scene_loop.mp4',
   });
 
   final String introPath;
   final String loopPath;
 
   @override
-  State<LearnSet9Screen> createState() => _LearnSet9ScreenState();
+  State<LearnSet10Screen> createState() => _LearnSet10ScreenState();
 }
 
-class _LearnSet9ScreenState extends State<LearnSet9Screen> {
+class _LearnSet10ScreenState extends State<LearnSet10Screen> {
   static const double baseW = 1920, baseH = 1080;
   static const double controllerTopPx = 35, controllerRightPx = 40;
   static const double _controllerBaseW = 580, _controllerBaseH = 135;
@@ -39,6 +41,10 @@ class _LearnSet9ScreenState extends State<LearnSet9Screen> {
   @override
   void initState() {
     super.initState();
+
+    // ✅ 게임 → 학습(씬10) 복귀 시 스토리 BGM 보장 + 재개
+    GlobalBgm.instance.ensureStory(); // (volume, restart 옵션 필요시 지정)
+    GlobalBgm.instance.resume();
 
     _introC =
         VideoPlayerController.asset(
@@ -110,6 +116,7 @@ class _LearnSet9ScreenState extends State<LearnSet9Screen> {
     _introC.removeListener(_onIntroTick);
     _introC.dispose();
     _loopC.dispose();
+    // 🔸 여기서는 스토리 BGM을 끄지 않는다(홈/게임 인트로 이동 시에만 stop)
     super.dispose();
   }
 
@@ -117,7 +124,7 @@ class _LearnSet9ScreenState extends State<LearnSet9Screen> {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        pageBuilder: (c, a, b) => const LearnSet8Screen(),
+        pageBuilder: (c, a, b) => const LearnSet9Screen(),
         transitionsBuilder: (c, a, b, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
@@ -125,12 +132,14 @@ class _LearnSet9ScreenState extends State<LearnSet9Screen> {
     );
   }
 
+  // ✅ 여기서만 스토리 BGM 완전 정지 후 GameIntro로
   Future<void> _goNext() async {
     GlobalSfx.instance.play('tap');
+    await GlobalBgm.instance.stop();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        pageBuilder: (c, a, b) => const LearnSet10Screen(),
+        pageBuilder: (c, a, b) => const GameIntroScreen(),
         transitionsBuilder: (c, a, b, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
@@ -143,7 +152,7 @@ class _LearnSet9ScreenState extends State<LearnSet9Screen> {
     Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
   }
 
-  // ▶❚❚: 영상 + BGM 동시 제어(ensure/stop은 안 함)
+  // ▶❚❚: 영상 + BGM 동시 제어
   Future<void> _togglePause() async {
     final active = _showIntro ? _introC : _loopC;
     final bgm = GlobalBgm.instance;

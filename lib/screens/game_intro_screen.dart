@@ -13,11 +13,11 @@ class GameIntroScreen extends StatelessWidget {
       loopVideoAsset: 'assets/videos/game_intro/intro_loop.mp4',
       bgmAsset: 'audio/bgm/intro_theme.mp3',
 
-      // ▶ 메인(인트로) 동안 50% 재생
+      // ▶ 메인(인트로) 동안 10% 재생
       bgmStartOnLoop: false, // 인트로부터 재생
-      bgmIntroVolume: 0.3, // 인트로 볼륨 50%
-      // ▶ 루프로 넘어갈 때 50% → 100% 페이드인
-      bgmTargetVolume: 1.0,
+      bgmIntroVolume: 0.1, // 인트로 볼륨 10%
+      // ▶ 루프로 넘어갈 때 10% → 30% 페이드인
+      bgmTargetVolume: 0.3,
       bgmFadeInMs: 1500, // 1.5초 정도 자연스럽게
 
       onNext: () {

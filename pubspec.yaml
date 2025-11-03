@@ -84,6 +84,7 @@ flutter:
     - assets/images/ui/controller/
     - assets/videos/
     - assets/videos/game_intro/
+    - assets/videos/game_outro/
     - assets/videos/reactions/
     - assets/videos/reactions/game/
     - assets/videos/reactions/game/set2/

@@ -16,8 +16,8 @@ class QuizResultScreen extends StatelessWidget {
       // ▶ 메인(인트로) 동안 10% 재생
       bgmStartOnLoop: false, // 인트로부터 재생
       bgmIntroVolume: 0.1, // 인트로 볼륨 10%
-      // ▶ 루프로 넘어갈 때 10% → 100% 페이드인
-      bgmTargetVolume: 1.0,
+      // ▶ 루프로 넘어갈 때 10% → 30% 페이드인
+      bgmTargetVolume: 0.3,
       bgmFadeInMs: 1500, // 1.5초 정도 자연스럽게
 
       onNext: () {

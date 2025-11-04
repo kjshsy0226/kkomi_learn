@@ -37,6 +37,7 @@ class GameOutroScreen extends StatefulWidget {
 class _GameOutroScreenState extends State<GameOutroScreen> {
   late final VideoPlayerController _controller;
   bool _ready = false;
+  bool _navigating = false; // ✅ 탭 중복 방지
 
   @override
   void initState() {
@@ -70,13 +71,23 @@ class _GameOutroScreenState extends State<GameOutroScreen> {
     super.dispose();
   }
 
-  void _handleTap() {
+  // ✅ 결과 화면으로 넘어가기 직전에 BGM을 완전히 정지해 겹침 방지
+  Future<void> _handleTap() async {
+    if (_navigating) return; // 중복 탭 방지
+    _navigating = true;
+
+    // 결과 화면이 자체적으로 BGM을 시작하므로, 여기서 끊음
+    if (widget.bgmAsset != null) {
+      await GlobalBgm.instance.stop();
+    }
+
     if (widget.onNext != null) {
       widget.onNext!.call();
       return;
     }
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
+
+    await Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (c, a, b) => const QuizResultScreen(),
         transitionsBuilder: (c, a, b, child) =>

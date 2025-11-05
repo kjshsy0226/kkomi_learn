@@ -1,3 +1,4 @@
+// lib/widgets/fruit_play_stage.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
@@ -47,6 +48,9 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
   _ActiveLayer _active = _ActiveLayer.curious;
   bool _ready = false;
 
+  // 세트 스왑 중 레이어 전환 차단 가드
+  bool _swappingSet = false;
+
   // images
   ImageProvider _bgImage = const AssetImage('');
   ImageProvider? _trayImage;
@@ -78,23 +82,29 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
   void didUpdateWidget(covariant FruitPlayStage old) {
     super.didUpdateWidget(old);
 
-    // curious ↔ like 전환: 레이어 전환 + 재생 보장
-    if (old.isLikeVideo != widget.isLikeVideo && _ready) {
+    // ✅ 1) 과일 변경을 "먼저" 처리
+    if (old.fruit != widget.fruit) {
+      _swappingSet = true; // 전환 중에는 레이어 스위치 막기
+      _prepareSetAndImages(
+        widget.fruit,
+        jumpTo: widget.isLikeVideo ? _ActiveLayer.like : _ActiveLayer.curious,
+      ).whenComplete(() {
+        _swappingSet = false; // 스왑 완료 후 해제
+      });
+
+      // 과일이 바뀌는 프레임에 isLikeVideo 변경이 와도 무시(깜빡임 방지)
+      return;
+    }
+
+    // ✅ 2) 같은 과일 내 curious ↔ like 전환만 처리 (스왑 중이면 무시)
+    if (!_swappingSet && old.isLikeVideo != widget.isLikeVideo && _ready) {
       _switchActive(
         widget.isLikeVideo ? _ActiveLayer.like : _ActiveLayer.curious,
       );
     }
 
-    // 과일 변경: 다음 리소스(이미지+비디오) 선로딩 후 세트 스왑
-    if (old.fruit != widget.fruit) {
-      _prepareSetAndImages(
-        widget.fruit,
-        jumpTo: widget.isLikeVideo ? _ActiveLayer.like : _ActiveLayer.curious,
-      );
-    }
-
     // 시각(whole/slice) 변경 시 샤인 재생
-    if (old.isSlice != widget.isSlice || old.fruit != widget.fruit) {
+    if (old.isSlice != widget.isSlice) {
       _replayShine();
     }
   }

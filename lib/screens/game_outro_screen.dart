@@ -1,4 +1,5 @@
 // lib/screens/game_outro_screen.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -8,23 +9,31 @@ import 'quiz_result_screen.dart';
 class GameOutroScreen extends StatefulWidget {
   const GameOutroScreen({
     super.key,
-    this.loopVideoAsset = 'assets/videos/game_outro/outro_loop.mp4',
+    this.introVideoAsset = 'assets/videos/game_outro/outro.mp4', // ✅ 본영상(1회)
+    this.loopVideoAsset = 'assets/videos/game_outro/outro_loop.mp4', // ✅ 루프영상
     this.bgmAsset = 'audio/bgm/intro_theme.mp3', // ✅ 기본 BGM
-    this.bgmVolume = 0.3,
+    this.bgmIntroVolume = 0.1, // 인트로 구간 볼륨
+    this.bgmTargetVolume = 0.3, // 루프 구간 목표 볼륨
     this.onNext,
-    this.useIntroKeyForSeamless = true, // ✅ 같은 키로 이어서 재생(겹침 방지)
+    this.useIntroKeyForSeamless = true, // ✅ 같은 키로 이어서(겹침 방지)
   });
 
-  /// 반복 재생할 영상(하나만 필요)
+  /// 1회 재생할 본영상
+  final String introVideoAsset;
+
+  /// 반복 재생할 루프영상
   final String loopVideoAsset;
 
   /// 선택: 아웃트로에서 틀 BGM(루프). null이면 재생 안 함
   final String? bgmAsset;
 
-  /// 선택: BGM 볼륨(0.0~1.0)
-  final double bgmVolume;
+  /// 인트로(본영상) 구간 BGM 볼륨
+  final double bgmIntroVolume;
 
-  /// 선택: 화면 탭 시 다음으로 이동할 콜백
+  /// 루프 구간에서의 목표 BGM 볼륨
+  final double bgmTargetVolume;
+
+  /// 화면 탭 시 다음으로 이동할 콜백(없으면 결과화면으로)
   final VoidCallback? onNext;
 
   /// 같은 논리 키를 쓰면 앞 화면 BGM을 끊지 않고 자연스럽게 이어짐
@@ -35,39 +44,98 @@ class GameOutroScreen extends StatefulWidget {
 }
 
 class _GameOutroScreenState extends State<GameOutroScreen> {
-  late final VideoPlayerController _controller;
-  bool _ready = false;
-  bool _navigating = false; // ✅ 탭 중복 방지
+  late final VideoPlayerController _introCtrl;
+  late final VideoPlayerController _loopCtrl;
+
+  bool _introReady = false;
+  bool _loopReady = false;
+  bool _showLoop = false;
+  bool _navigating = false;
+  bool _switched = false; // 본영상 → 루프 전환 1회 보장
 
   @override
   void initState() {
     super.initState();
 
-    // 1) 루프 영상 설정
-    _controller = VideoPlayerController.asset(widget.loopVideoAsset)
-      ..setLooping(true)
-      ..initialize().then((_) async {
-        if (!mounted) return;
-        setState(() => _ready = true);
-        await _controller.play();
-      });
-
-    // 2) 전역 BGM: 루프 재생 보장(겹침 없이 이어지도록)
+    // ── BGM: 같은 키로 보장(겹침 없이 이어지도록) ─────────────────────
     if (widget.bgmAsset != null) {
       GlobalBgm.instance.ensure(
         asset: widget.bgmAsset!,
         key: widget.useIntroKeyForSeamless ? 'intro_theme' : 'outro_theme',
         loop: true,
-        volume: widget.bgmVolume,
+        volume: widget.bgmIntroVolume, // 인트로 구간은 낮게
         restart: false, // 이미 같은 키 재생 중이면 이어서
+      );
+    }
+
+    // ── 본영상 컨트롤러 ────────────────────────────────────────────────
+    _introCtrl = VideoPlayerController.asset(widget.introVideoAsset)
+      ..setLooping(false)
+      ..initialize().then((_) async {
+        if (!mounted) return;
+        setState(() => _introReady = true);
+        await _introCtrl.play();
+      });
+
+    // 본영상 종료 감지 → 루프로 전환
+    _introCtrl.addListener(_checkIntroEndedAndSwitch);
+
+    // ── 루프영상 컨트롤러(미리 준비) ───────────────────────────────────
+    _loopCtrl = VideoPlayerController.asset(widget.loopVideoAsset)
+      ..setLooping(true)
+      ..initialize().then((_) {
+        if (!mounted) return;
+        setState(() => _loopReady = true);
+        // 재생은 전환 시점에 시작
+      });
+  }
+
+  void _checkIntroEndedAndSwitch() {
+    final v = _introCtrl.value;
+    if (!v.isInitialized || _switched) return;
+
+    // 종료 판정 (duration 대비 position이 같거나 넘어가면)
+    if (!v.isPlaying &&
+        v.position >= (v.duration - const Duration(milliseconds: 50))) {
+      _switchToLoop();
+    }
+  }
+
+  Future<void> _switchToLoop() async {
+    if (_switched) return;
+    _switched = true;
+
+    // 본영상 정지
+    if (_introCtrl.value.isInitialized) {
+      await _introCtrl.pause();
+      await _introCtrl.seekTo(Duration.zero);
+    }
+
+    // 루프영상 시작
+    if (_loopReady) {
+      await _loopCtrl.play();
+      if (!mounted) return;
+      setState(() => _showLoop = true);
+    }
+
+    // 루프 진입 시 BGM 볼륨 상향(동일 키로 이어서)
+    if (widget.bgmAsset != null) {
+      GlobalBgm.instance.ensure(
+        asset: widget.bgmAsset!,
+        key: widget.useIntroKeyForSeamless ? 'intro_theme' : 'outro_theme',
+        loop: true,
+        volume: widget.bgmTargetVolume, // 루프 구간 목표 볼륨
+        restart: false,
       );
     }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    // BGM은 유지(다음 화면 정책에 맡김). 필요하면 여기서 stop() 호출.
+    _introCtrl.removeListener(_checkIntroEndedAndSwitch);
+    _introCtrl.dispose();
+    _loopCtrl.dispose();
+    // BGM은 유지(다음 화면 정책에 맡김). 실제 전환 시점(_handleTap)에서는 stop() 호출.
     super.dispose();
   }
 
@@ -76,7 +144,8 @@ class _GameOutroScreenState extends State<GameOutroScreen> {
     if (_navigating) return; // 중복 탭 방지
     _navigating = true;
 
-    // 결과 화면이 자체적으로 BGM을 시작하므로, 여기서 끊음
+    // 탭으로도 본영상 → 루프 전환 직후라면 굳이 기다릴 필요 없음
+    // 바로 이동할 때 BGM 겹침 방지를 위해 stop()
     if (widget.bgmAsset != null) {
       await GlobalBgm.instance.stop();
     }
@@ -99,23 +168,33 @@ class _GameOutroScreenState extends State<GameOutroScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final showLoop = _showLoop && _loopReady;
+    final showIntro = !showLoop && _introReady;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _handleTap,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (_ready)
+          if (showIntro)
             FittedBox(
               fit: BoxFit.cover,
               child: SizedBox(
-                width: _controller.value.size.width,
-                height: _controller.value.size.height,
-                child: VideoPlayer(_controller),
+                width: _introCtrl.value.size.width,
+                height: _introCtrl.value.size.height,
+                child: VideoPlayer(_introCtrl),
               ),
-            )
-          else
-            const SizedBox.shrink(),
+            ),
+          if (showLoop)
+            FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: _loopCtrl.value.size.width,
+                height: _loopCtrl.value.size.height,
+                child: VideoPlayer(_loopCtrl),
+              ),
+            ),
         ],
       ),
     );

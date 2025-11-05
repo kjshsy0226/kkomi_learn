@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import '../models/learn_fruit.dart';
@@ -24,6 +25,9 @@ class FruitPlayStage extends StatefulWidget {
 enum _ActiveLayer { curious, like, likeLoop }
 
 class _FruitPlayStageState extends State<FruitPlayStage> {
+  // ── 튜닝 포인트: 엔드 감지 여유(플랫폼별 position/duration 엣지 보정)
+  static const Duration _kEndSlack = Duration(milliseconds: 160);
+
   final ShineEmphasisController _shine = ShineEmphasisController();
 
   // videos(현재 세트)
@@ -38,6 +42,7 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
 
   Future<void>? _initFuture;
   VoidCallback? _likeEndListener;
+  Timer? _likeEndTimer; // ✅ 플랫폼 보정용 타임아웃
 
   _ActiveLayer _active = _ActiveLayer.curious;
   bool _ready = false;
@@ -96,6 +101,7 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
 
   @override
   void dispose() {
+    _cancelLikeTimer();
     _removeLikeListener();
     _disposeSet(_curiousC, _likeC, _likeLoopC);
     _disposeSet(_nextCuriousC, _nextLikeC, _nextLikeLoopC);
@@ -140,6 +146,11 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
     }
   }
 
+  void _cancelLikeTimer() {
+    _likeEndTimer?.cancel();
+    _likeEndTimer = null;
+  }
+
   Future<void> _prepareSetAndImages(
     LearnFruit f, {
     required _ActiveLayer jumpTo,
@@ -165,21 +176,25 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
           _nextCuriousC!
             ..setLooping(true)
             ..play()
-            ..pause();
+            ..pause()
+            ..seekTo(Duration.zero);
           _nextLikeC!
             ..setLooping(false)
             ..play()
-            ..pause();
+            ..pause()
+            ..seekTo(Duration.zero);
           _nextLikeLoopC!
             ..setLooping(true)
             ..play()
-            ..pause();
+            ..pause()
+            ..seekTo(Duration.zero);
 
           // 4) 기존 세트 보존 상태에서 스왑
           final oldCur = _curiousC;
           final oldLike = _likeC;
           final oldLoop = _likeLoopC;
 
+          _cancelLikeTimer();
           _removeLikeListener();
 
           _curiousC = _nextCuriousC;
@@ -192,11 +207,19 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
 
           _ready = true;
 
-          // like 종료 → like_loop 전환
+          // like 종료 감지: (1) 리스너 + slack, (2) 보조 타임아웃
           _likeEndListener = () {
             final v = _likeC?.value;
-            if (v == null) return;
-            if (v.isInitialized && !v.isPlaying && v.position >= v.duration) {
+            if (v == null || !v.isInitialized) return;
+
+            final dur = v.duration;
+            final pos = v.position;
+
+            // 일부 플랫폼에서 isPlaying 이 끝 직전에 true 유지되는 경우가 있어 pos 기준으로만 판정
+            final bool reachedEnd =
+                dur > Duration.zero && (dur - pos) <= _kEndSlack;
+
+            if (reachedEnd && _active == _ActiveLayer.like) {
               _switchActive(_ActiveLayer.likeLoop);
             }
           };
@@ -220,12 +243,39 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
     for (final c in all) {
       if (c == null) continue;
       if (c == target) {
+        // ✅ 타깃은 항상 0초부터 재생(플랫폼별 워밍업 상태 차단)
+        if (c.value.position != Duration.zero) {
+          await c.seekTo(Duration.zero);
+        }
         if (!c.value.isPlaying) await c.play();
       } else {
         if (c.value.isPlaying) await c.pause();
-        await c.seekTo(Duration.zero);
+        if (c.value.position != Duration.zero) {
+          await c.seekTo(Duration.zero);
+        }
       }
     }
+  }
+
+  void _armLikeTimeout() {
+    _cancelLikeTimer();
+    final likeV = _likeC?.value;
+    if (likeV == null || !likeV.isInitialized) return;
+
+    // duration 기반 보조 타임아웃(여유 슬랙 포함)
+    final dur = likeV.duration;
+    if (dur <= Duration.zero) return;
+
+    final timeout = dur - _kEndSlack;
+    final fireAfter = timeout.isNegative ? Duration.zero : timeout;
+
+    _likeEndTimer = Timer(fireAfter, () {
+      // 여전히 like 레이어면 강제 전환
+      if (!mounted) return;
+      if (_active == _ActiveLayer.like) {
+        _switchActive(_ActiveLayer.likeLoop);
+      }
+    });
   }
 
   void _switchActive(_ActiveLayer layer) async {
@@ -234,14 +284,21 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
       setState(() {});
       return;
     }
+
     switch (layer) {
       case _ActiveLayer.curious:
+        _cancelLikeTimer();
         await _playOnly(_curiousC);
         break;
+
       case _ActiveLayer.like:
         await _playOnly(_likeC);
+        // ✅ like 시작 시 타임아웃 무장(윈도우 등 엔드 이벤트 부정확 보정)
+        _armLikeTimeout();
         break;
+
       case _ActiveLayer.likeLoop:
+        _cancelLikeTimer();
         await _playOnly(_likeLoopC);
         break;
     }

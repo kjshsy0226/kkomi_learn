@@ -1,12 +1,12 @@
-// lib/screens/learn_set1_screen.dart
 import 'dart:io' show Platform;
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
-import '../core/bgm_tracks.dart'; // ✅ BGM 숏컷(ensureStory/stopStory)
+import '../core/bgm_tracks.dart';
 import '../widgets/game_controller_bar.dart';
+import '../utils/routes.dart';
 import 'learn_set2_screen.dart';
 
 class LearnSet1Screen extends StatefulWidget {
@@ -37,7 +37,6 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
   void initState() {
     super.initState();
 
-    // ✅ 스토리 BGM 보장(키/경로 하드코딩 금지: 숏컷 사용)
     GlobalBgm.instance.ensureStory();
 
     _introC = VideoPlayerController.asset(widget.introPath)
@@ -54,10 +53,8 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
       if (!mounted) return;
 
       // 디코더 워밍업
-      await _introC.play();
-      await _introC.pause();
-      await _loopC.play();
-      await _loopC.pause();
+      await _introC.play(); await _introC.pause();
+      await _loopC.play();  await _loopC.pause();
 
       setState(() => _ready = true);
 
@@ -83,14 +80,9 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
     try {
       await _loopC.seekTo(Duration.zero);
       await _loopC.play();
-      try {
-        await _introC.pause();
-      } catch (_) {}
+      try { await _introC.pause(); } catch (_) {}
       if (!mounted) return;
-      setState(() {
-        _showIntro = false;
-        _paused = false;
-      });
+      setState(() { _showIntro = false; _paused = false; });
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
     }
@@ -115,12 +107,7 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
   void _goNext() {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (c, a, b) => const LearnSet2Screen(),
-        transitionsBuilder: (c, a, b, child) =>
-            FadeTransition(opacity: a, child: child),
-        transitionDuration: const Duration(milliseconds: 300),
-      ),
+      fadeRouteWhite(const LearnSet2Screen()), // ✅ 흰 배경 보장 라우트
     );
   }
 
@@ -151,21 +138,17 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
     // 영상 초기화 실패/에러 시 BGM만 토글
     if (!active.value.isInitialized || _error != null) {
       if (bgm.isPlaying) {
-        await bgm.pause();
-        setState(() => _paused = true);
+        await bgm.pause(); setState(() => _paused = true);
       } else {
-        await bgm.resume();
-        setState(() => _paused = false);
+        await bgm.resume(); setState(() => _paused = false);
       }
       return;
     }
 
     if (active.value.isPlaying) {
-      // ▶ 재생중 → 둘 다 멈춤
       await Future.wait([active.pause(), bgm.pause()]);
       setState(() => _paused = true);
     } else {
-      // ❚❚ 멈춤 → 둘 다 재개
       await Future.wait([active.play(), bgm.resume()]);
       setState(() => _paused = false);
     }
@@ -173,13 +156,11 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
 
   bool _isInControllerArea(Offset gp, Size sz) {
     final scale = min(sz.width / baseW, sz.height / baseH);
-    final cW = baseW * scale,
-        cH = baseH * scale,
-        l = (sz.width - cW) / 2,
-        t = (sz.height - cH) / 2;
+    final cW = baseW * scale, cH = baseH * scale;
+    final l = (sz.width - cW) / 2, t = (sz.height - cH) / 2;
     final w = _controllerBaseW * scale, h = _controllerBaseH * scale;
     final x = l + (cW - controllerRightPx * scale) - w,
-        y = t + controllerTopPx * scale;
+          y = t + controllerTopPx * scale;
     return Rect.fromLTWH(x, y, w, h).contains(gp);
   }
 
@@ -188,10 +169,8 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
     final ready = _ready && _error == null;
     final size = MediaQuery.of(context).size;
     final scale = min(size.width / baseW, size.height / baseH);
-    final cW = baseW * scale,
-        cH = baseH * scale,
-        l = (size.width - cW) / 2,
-        t = (size.height - cH) / 2;
+    final cW = baseW * scale, cH = baseH * scale;
+    final l = (size.width - cW) / 2, t = (size.height - cH) / 2;
 
     return Focus(
       autofocus: true,
@@ -202,10 +181,11 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
           if (!_isInControllerArea(d.globalPosition, size)) _goNext();
         },
         child: Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.white,
           body: Stack(
             fit: StackFit.expand,
             children: [
+              const ColoredBox(color: Colors.white), // ✅ 바닥 흰색
               if (ready) ...[
                 Positioned.fill(
                   child: FittedBox(
@@ -233,23 +213,26 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
                     ),
                   ),
                 ),
-              ] else
-                _loadingOrError(),
+              ] else ...[
+                // ✅ ready 전에는 깔끔한 '흰 화면 + (선택) 얌전한 로딩'
+                const ColoredBox(color: Colors.white),
+                const Center(
+                  child: SizedBox(
+                    width: 36, height: 36,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  ),
+                ),
+              ],
               if (_error != null && Platform.isWindows)
-                const Positioned(
-                  left: 16,
-                  bottom: 24,
-                  right: 16,
+                Positioned(
+                  left: 16, bottom: 24, right: 16,
                   child: Text(
                     '힌트: Windows 배포 시 MP4(H.264 + AAC) 권장.\n다른 코덱/컨테이너는 재생이 안 될 수 있어요.',
-                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                    style: TextStyle(color: Colors.black45, fontSize: 12),
                   ),
                 ),
               Positioned(
-                left: l,
-                top: t,
-                width: cW,
-                height: cH,
+                left: l, top: t, width: cW, height: cH,
                 child: Stack(
                   children: [
                     Positioned(
@@ -264,10 +247,7 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
                           onPrev: _goPrev,
                           onNext: _goNext,
                           onPauseToggle: _togglePause,
-                          // 🔻 종료 시 BGM 정리(bgm_tracks의 숏컷 사용)
-                          onExit: () {
-                            GlobalBgm.instance.stopStory();
-                          },
+                          onExit: () => GlobalBgm.instance.stopStory(),
                         ),
                       ),
                     ),
@@ -280,30 +260,4 @@ class _LearnSet1ScreenState extends State<LearnSet1Screen> {
       ),
     );
   }
-
-  Widget _loadingOrError() => Container(
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Colors.black, Color(0xFF101016)],
-      ),
-    ),
-    child: Center(
-      child: _error == null
-          ? const CircularProgressIndicator()
-          : const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.error_outline, color: Colors.white70, size: 36),
-                SizedBox(height: 12),
-                Text(
-                  '영상을 불러올 수 없어요.\n탭/Enter로 계속 진행합니다.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
-                ),
-              ],
-            ),
-    ),
-  );
 }

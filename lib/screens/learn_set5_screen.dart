@@ -15,7 +15,7 @@ class LearnSet5Screen extends StatefulWidget {
   const LearnSet5Screen({
     super.key,
     this.introPath = 'assets/videos/scene/set5_scene.mp4',
-    this.loopPath = 'assets/videos/scene/set5_scene_loop.mp4',
+    this.loopPath  = 'assets/videos/scene/set5_scene_loop.mp4',
   });
 
   final String introPath;
@@ -34,7 +34,7 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
 
   // 비디오
   late final VideoPlayerController _introC; // 단발
-  late final VideoPlayerController _loopC; // 반복
+  late final VideoPlayerController _loopC;  // 반복
   bool _ready = false; // 두 영상 initialize 완료
   bool _showIntro = true; // 위 레이어(인트로) 표시 여부
   bool _paused = false;
@@ -50,7 +50,6 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
     super.initState();
 
     // ✅ 게임에서 돌아온 지점: 스토리 BGM 재개/보장
-    // (이미 재생 중이면 그대로, 멈춰있으면 재시작)
     GlobalBgm.instance.ensureStory();
 
     _cueCtrl = AnimationController(
@@ -59,18 +58,13 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
     );
     _cueOpacity = CurvedAnimation(parent: _cueCtrl, curve: Curves.easeInOut);
 
-    _introC =
-        VideoPlayerController.asset(
-            widget.introPath,
-            videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-          )
-          ..setLooping(false)
-          ..addListener(_onIntroTick);
+    // ⚠️ videoPlayerOptions 제거 (버전/타겟에서 미지원일 수 있음)
+    _introC = VideoPlayerController.asset(widget.introPath)
+      ..setLooping(false)
+      ..addListener(_onIntroTick);
 
-    _loopC = VideoPlayerController.asset(
-      widget.loopPath,
-      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-    )..setLooping(true);
+    _loopC  = VideoPlayerController.asset(widget.loopPath)
+      ..setLooping(true);
 
     _initialize();
   }
@@ -81,10 +75,8 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
       if (!mounted) return;
 
       // 텍스처 워밍업
-      await _introC.play();
-      await _introC.pause();
-      await _loopC.play();
-      await _loopC.pause();
+      await _introC.play(); await _introC.pause();
+      await _loopC.play();  await _loopC.pause();
 
       setState(() => _ready = true);
 
@@ -116,13 +108,11 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
     try {
       await _loopC.seekTo(Duration.zero);
       await _loopC.play();
-      try {
-        await _introC.pause();
-      } catch (_) {}
+      try { await _introC.pause(); } catch (_) {}
       if (!mounted) return;
       setState(() {
         _showIntro = false; // ✨ 페이드 없이 즉시 hide
-        _showCue = true; // ✨ 깜빡임 오버레이 on
+        _showCue = true;    // ✨ 깜빡임 오버레이 on
         _paused = false;
       });
       // 깜빡임 반복
@@ -156,12 +146,14 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
         transitionsBuilder: (c, a, b, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
+        opaque: true,                    // ✅ 전환 중 바닥이 비치지 않게
+        barrierColor: Colors.white,      // ✅ 필요시 흰 바닥
       ),
     );
   }
 
   Future<void> _goPrev() async {
-    // ✅ 이전은 게임으로 복귀 → 4씬의 반대 개념: 게임 직전에는 스토리 BGM을 중단
+    // ✅ 이전은 게임으로 복귀 → 게임 직전에는 스토리 BGM을 중단
     await GlobalBgm.instance.stopStory();
 
     if (!mounted) return;
@@ -171,6 +163,8 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
         transitionsBuilder: (c, a, b, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
+        opaque: true,
+        barrierColor: Colors.white,
       ),
     );
   }
@@ -240,7 +234,7 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
     final ctrlH = _controllerBaseH * scale;
 
     final ctrlLeft = leftPad + (canvasW - controllerRightPx * scale) - ctrlW;
-    final ctrlTop = topPad + controllerTopPx * scale;
+    final ctrlTop  = topPad + controllerTopPx * scale;
     final rect = Rect.fromLTWH(ctrlLeft, ctrlTop, ctrlW, ctrlH);
     return rect.contains(globalPos);
   }
@@ -254,7 +248,7 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
     final scale = _calcScale(size);
     final canvasW = baseW * scale, canvasH = baseH * scale;
     final leftPad = (size.width - canvasW) / 2;
-    final topPad = (size.height - canvasH) / 2;
+    final topPad  = (size.height - canvasH) / 2;
 
     final ready = _ready && _error == null;
 
@@ -268,10 +262,13 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
         autofocus: true,
         onKeyEvent: _onKeyEvent,
         child: Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.white,
           body: Stack(
             fit: StackFit.expand,
             children: [
+              // ✅ 전환 중/로딩 중에도 흰 바닥이 비치도록 깔아둠
+              const ColoredBox(color: Colors.white),
+
               if (ready) ...[
                 // 바닥: loop (처음엔 pause, 인트로 끝에 ۰부터 play)
                 Positioned.fill(
@@ -301,8 +298,16 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
                     ),
                   ),
                 ),
-              ] else
-                _loadingOrError(),
+              ] else ...[
+                // ✅ ready 전에는 흰 화면 + 얌전한 로딩
+                const ColoredBox(color: Colors.white),
+                const Center(
+                  child: SizedBox(
+                    width: 36, height: 36,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  ),
+                ),
+              ],
 
               // 인트로 종료 후(루프 재생과 동시에) 깜빡이는 아웃라인
               if (_showCue)
@@ -314,16 +319,16 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
                   ),
                 ),
 
-              // Windows 코덱 힌트
+              // Windows 코덱 힌트 (라이트 배경용 색상)
               if (_error != null && Platform.isWindows)
-                const Positioned(
+                Positioned(
                   left: 16,
                   bottom: 24,
                   right: 16,
                   child: Text(
                     '힌트: Windows 배포 시 MP4(H.264 + AAC) 권장.\n'
                     '다른 코덱/컨테이너는 재생이 안 될 수 있어요.',
-                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                    style: TextStyle(color: Colors.black45, fontSize: 12),
                   ),
                 ),
 
@@ -347,10 +352,7 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
                           onPrev: _goPrev, // ◀ 게임으로 이동 전 BGM stop
                           onNext: _goNext, // ▶ 스토리 계속 (BGM 유지)
                           onPauseToggle: _togglePause, // ❚❚ 영상+BGM 동시 제어
-                          // 선택: 종료 시 스토리 BGM 정리
-                          onExit: () {
-                            GlobalBgm.instance.stopStory();
-                          },
+                          onExit: () => GlobalBgm.instance.stopStory(),
                         ),
                       ),
                     ),
@@ -363,30 +365,4 @@ class _LearnSet5ScreenState extends State<LearnSet5Screen>
       ),
     );
   }
-
-  Widget _loadingOrError() => Container(
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Colors.black, Color(0xFF101016)],
-      ),
-    ),
-    child: Center(
-      child: _error == null
-          ? const CircularProgressIndicator()
-          : const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.error_outline, color: Colors.white70, size: 36),
-                SizedBox(height: 12),
-                Text(
-                  '학습 영상을 불러올 수 없어요.\n탭/Enter로 계속 진행합니다.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
-                ),
-              ],
-            ),
-    ),
-  );
 }

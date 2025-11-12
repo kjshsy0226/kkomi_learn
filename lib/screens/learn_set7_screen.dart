@@ -1,3 +1,4 @@
+// lib/screens/learn_set7_screen.dart
 // (6에서 시작된 스토리 BGM 건드리지 않음: ensure/stop 호출 없음, ▶❚❚ 토글 시 영상+BGM 동시 제어)
 import 'dart:io' show Platform;
 import 'dart:math';
@@ -15,7 +16,7 @@ class LearnSet7Screen extends StatefulWidget {
   const LearnSet7Screen({
     super.key,
     this.introPath = 'assets/videos/scene/set7_scene.mp4',
-    this.loopPath = 'assets/videos/scene/set7_scene_loop.mp4',
+    this.loopPath  = 'assets/videos/scene/set7_scene_loop.mp4',
   });
 
   final String introPath;
@@ -39,13 +40,12 @@ class _LearnSet7ScreenState extends State<LearnSet7Screen> {
   void initState() {
     super.initState();
 
-    _introC =
-        VideoPlayerController.asset(
-            widget.introPath,
-            videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-          )
-          ..setLooping(false)
-          ..addListener(_onIntroTick);
+    _introC = VideoPlayerController.asset(
+      widget.introPath,
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    )
+      ..setLooping(false)
+      ..addListener(_onIntroTick);
 
     _loopC = VideoPlayerController.asset(
       widget.loopPath,
@@ -60,10 +60,9 @@ class _LearnSet7ScreenState extends State<LearnSet7Screen> {
       await Future.wait([_introC.initialize(), _loopC.initialize()]);
       if (!mounted) return;
 
-      await _introC.play();
-      await _introC.pause();
-      await _loopC.play();
-      await _loopC.pause();
+      // 텍스처 워밍업
+      await _introC.play(); await _introC.pause();
+      await _loopC.play();  await _loopC.pause();
 
       setState(() => _ready = true);
 
@@ -90,9 +89,7 @@ class _LearnSet7ScreenState extends State<LearnSet7Screen> {
     try {
       await _loopC.seekTo(Duration.zero);
       await _loopC.play();
-      try {
-        await _introC.pause();
-      } catch (_) {}
+      try { await _introC.pause(); } catch (_) {}
       if (!mounted) return;
       setState(() {
         _showIntro = false;
@@ -119,6 +116,8 @@ class _LearnSet7ScreenState extends State<LearnSet7Screen> {
         transitionsBuilder: (c, a, b, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
+        opaque: true,
+        barrierColor: Colors.white, // ✅ 전환 중 흰 바닥
       ),
     );
   }
@@ -132,6 +131,8 @@ class _LearnSet7ScreenState extends State<LearnSet7Screen> {
         transitionsBuilder: (c, a, b, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
+        opaque: true,
+        barrierColor: Colors.white, // ✅ 전환 중 흰 바닥
       ),
     );
   }
@@ -205,7 +206,7 @@ class _LearnSet7ScreenState extends State<LearnSet7Screen> {
     final scale = _calcScale(size);
     final canvasW = baseW * scale, canvasH = baseH * scale;
     final leftPad = (size.width - canvasW) / 2,
-        topPad = (size.height - canvasH) / 2;
+          topPad  = (size.height - canvasH) / 2;
 
     final ready = _ready && _error == null;
 
@@ -218,10 +219,13 @@ class _LearnSet7ScreenState extends State<LearnSet7Screen> {
         autofocus: true,
         onKeyEvent: _onKeyEvent,
         child: Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.white,
           body: Stack(
             fit: StackFit.expand,
             children: [
+              // ✅ 항상 깔리는 흰 바닥 (로딩/전환 중에도 보이게)
+              const ColoredBox(color: Colors.white),
+
               if (ready) ...[
                 Positioned.fill(
                   child: FittedBox(
@@ -249,17 +253,26 @@ class _LearnSet7ScreenState extends State<LearnSet7Screen> {
                     ),
                   ),
                 ),
-              ] else
-                _loadingOrError(),
+              ] else ...[
+                // ✅ ready 전: 흰 화면 + 심플 로딩
+                const ColoredBox(color: Colors.white),
+                const Center(
+                  child: SizedBox(
+                    width: 36, height: 36,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  ),
+                ),
+              ],
 
+              // Windows 코덱 힌트 (라이트 배경용 컬러)
               if (_error != null && Platform.isWindows)
-                const Positioned(
+                Positioned(
                   left: 16,
                   bottom: 24,
                   right: 16,
                   child: Text(
                     '힌트: Windows 배포 시 MP4(H.264 + AAC) 권장.\n다른 코덱/컨테이너는 재생이 안 될 수 있어요.',
-                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                    style: TextStyle(color: Colors.black45, fontSize: 12),
                   ),
                 ),
 
@@ -294,30 +307,4 @@ class _LearnSet7ScreenState extends State<LearnSet7Screen> {
       ),
     );
   }
-
-  Widget _loadingOrError() => Container(
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Colors.black, Color(0xFF101016)],
-      ),
-    ),
-    child: Center(
-      child: _error == null
-          ? const CircularProgressIndicator()
-          : const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.error_outline, color: Colors.white70, size: 36),
-                SizedBox(height: 12),
-                Text(
-                  '학습 영상을 불러올 수 없어요.\n탭/Enter로 계속 진행합니다.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
-                ),
-              ],
-            ),
-    ),
-  );
 }

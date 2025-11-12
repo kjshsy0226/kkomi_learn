@@ -9,7 +9,6 @@ import 'package:video_player/video_player.dart';
 
 import '../core/global_sfx.dart';
 import '../core/bgm_tracks.dart'; // ✅ 스토리 BGM 숏컷(ensureStory/stop은 여기서만)
-
 import '../widgets/game_controller_bar.dart';
 import 'learn_set9_screen.dart';
 import 'game_intro_screen.dart';
@@ -18,7 +17,7 @@ class LearnSet10Screen extends StatefulWidget {
   const LearnSet10Screen({
     super.key,
     this.introPath = 'assets/videos/scene/set10_scene.mp4',
-    this.loopPath = 'assets/videos/scene/set10_scene_loop.mp4',
+    this.loopPath  = 'assets/videos/scene/set10_scene_loop.mp4',
   });
 
   final String introPath;
@@ -43,16 +42,15 @@ class _LearnSet10ScreenState extends State<LearnSet10Screen> {
     super.initState();
 
     // ✅ 게임 → 학습(씬10) 복귀 시 스토리 BGM 보장 + 재개
-    GlobalBgm.instance.ensureStory(); // (volume, restart 옵션 필요시 지정)
+    GlobalBgm.instance.ensureStory();
     GlobalBgm.instance.resume();
 
-    _introC =
-        VideoPlayerController.asset(
-            widget.introPath,
-            videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-          )
-          ..setLooping(false)
-          ..addListener(_onIntroTick);
+    _introC = VideoPlayerController.asset(
+      widget.introPath,
+      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+    )
+      ..setLooping(false)
+      ..addListener(_onIntroTick);
 
     _loopC = VideoPlayerController.asset(
       widget.loopPath,
@@ -68,10 +66,8 @@ class _LearnSet10ScreenState extends State<LearnSet10Screen> {
       if (!mounted) return;
 
       // 디코더 워밍업
-      await _introC.play();
-      await _introC.pause();
-      await _loopC.play();
-      await _loopC.pause();
+      await _introC.play(); await _introC.pause();
+      await _loopC.play();  await _loopC.pause();
 
       setState(() => _ready = true);
 
@@ -98,9 +94,7 @@ class _LearnSet10ScreenState extends State<LearnSet10Screen> {
     try {
       await _loopC.seekTo(Duration.zero);
       await _loopC.play();
-      try {
-        await _introC.pause();
-      } catch (_) {}
+      try { await _introC.pause(); } catch (_) {}
       if (!mounted) return;
       setState(() {
         _showIntro = false;
@@ -128,6 +122,8 @@ class _LearnSet10ScreenState extends State<LearnSet10Screen> {
         transitionsBuilder: (c, a, b, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
+        opaque: true,
+        barrierColor: Colors.white, // ✅ 전환 중 흰 바닥
       ),
     );
   }
@@ -143,6 +139,8 @@ class _LearnSet10ScreenState extends State<LearnSet10Screen> {
         transitionsBuilder: (c, a, b, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
+        opaque: true,
+        barrierColor: Colors.white, // ✅ 전환 중 흰 바닥
       ),
     );
   }
@@ -216,7 +214,7 @@ class _LearnSet10ScreenState extends State<LearnSet10Screen> {
     final scale = _calcScale(size);
     final canvasW = baseW * scale, canvasH = baseH * scale;
     final leftPad = (size.width - canvasW) / 2,
-        topPad = (size.height - canvasH) / 2;
+          topPad  = (size.height - canvasH) / 2;
 
     final ready = _ready && _error == null;
 
@@ -229,10 +227,13 @@ class _LearnSet10ScreenState extends State<LearnSet10Screen> {
         autofocus: true,
         onKeyEvent: _onKeyEvent,
         child: Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.white,
           body: Stack(
             fit: StackFit.expand,
             children: [
+              // ✅ 항상 깔리는 흰 바닥(로딩/전환 중 검정 플래시 방지)
+              const ColoredBox(color: Colors.white),
+
               if (ready) ...[
                 Positioned.fill(
                   child: FittedBox(
@@ -260,17 +261,24 @@ class _LearnSet10ScreenState extends State<LearnSet10Screen> {
                     ),
                   ),
                 ),
-              ] else
-                _loadingOrError(),
+              ] else ...[
+                // ✅ ready 전: 흰 화면 + 심플 로딩
+                const Center(
+                  child: SizedBox(
+                    width: 36, height: 36,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  ),
+                ),
+              ],
 
               if (_error != null && Platform.isWindows)
-                const Positioned(
+                Positioned(
                   left: 16,
                   bottom: 24,
                   right: 16,
                   child: Text(
                     '힌트: Windows 배포 시 MP4(H.264 + AAC) 권장.\n다른 코덱/컨테이너는 재생이 안 될 수 있어요.',
-                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                    style: TextStyle(color: Colors.black45, fontSize: 12),
                   ),
                 ),
 
@@ -291,7 +299,7 @@ class _LearnSet10ScreenState extends State<LearnSet10Screen> {
                           isPaused: _paused,
                           onHome: _goHomeToSplash,
                           onPrev: _goPrev,
-                          onNext: _goNext,
+                          onNext: _goNext,        // ▶ 여기서 GameIntro로 (BGM stop)
                           onPauseToggle: _togglePause,
                         ),
                       ),
@@ -305,30 +313,4 @@ class _LearnSet10ScreenState extends State<LearnSet10Screen> {
       ),
     );
   }
-
-  Widget _loadingOrError() => Container(
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Colors.black, Color(0xFF101016)],
-      ),
-    ),
-    child: Center(
-      child: _error == null
-          ? const CircularProgressIndicator()
-          : const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.error_outline, color: Colors.white70, size: 36),
-                SizedBox(height: 12),
-                Text(
-                  '학습 영상을 불러올 수 없어요.\n탭/Enter로 계속 진행합니다.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
-                ),
-              ],
-            ),
-    ),
-  );
 }

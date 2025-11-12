@@ -15,7 +15,7 @@ class LearnSet6Screen extends StatefulWidget {
   const LearnSet6Screen({
     super.key,
     this.introPath = 'assets/videos/scene/set6_scene.mp4',
-    this.loopPath = 'assets/videos/scene/set6_scene_loop.mp4',
+    this.loopPath  = 'assets/videos/scene/set6_scene_loop.mp4',
   });
 
   final String introPath;
@@ -61,10 +61,8 @@ class _LearnSet6ScreenState extends State<LearnSet6Screen> {
       if (!mounted) return;
 
       // 디코더/텍스처 워밍업
-      await _introC.play();
-      await _introC.pause();
-      await _loopC.play();
-      await _loopC.pause();
+      await _introC.play(); await _introC.pause();
+      await _loopC.play();  await _loopC.pause();
 
       setState(() => _ready = true);
 
@@ -91,9 +89,7 @@ class _LearnSet6ScreenState extends State<LearnSet6Screen> {
     try {
       await _loopC.seekTo(Duration.zero);
       await _loopC.play();
-      try {
-        await _introC.pause();
-      } catch (_) {}
+      try { await _introC.pause(); } catch (_) {}
       if (!mounted) return;
       setState(() {
         _showIntro = false;
@@ -126,6 +122,8 @@ class _LearnSet6ScreenState extends State<LearnSet6Screen> {
         transitionsBuilder: (c, a, b, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
+        opaque: true,
+        barrierColor: Colors.white, // ✅ 전환 중 흰 바닥
       ),
     );
   }
@@ -138,6 +136,8 @@ class _LearnSet6ScreenState extends State<LearnSet6Screen> {
         transitionsBuilder: (c, a, b, child) =>
             FadeTransition(opacity: a, child: child),
         transitionDuration: const Duration(milliseconds: 300),
+        opaque: true,
+        barrierColor: Colors.white, // ✅ 전환 중 흰 바닥
       ),
     );
   }
@@ -163,7 +163,7 @@ class _LearnSet6ScreenState extends State<LearnSet6Screen> {
     return KeyEventResult.ignored;
   }
 
-  // ▶ 콘텐츠 & 🎵BGM 동시 제어 (LearnSet2/3와 동일 패턴)
+  // ▶ 콘텐츠 & 🎵BGM 동시 제어
   Future<void> _togglePause() async {
     final active = _showIntro ? _introC : _loopC;
     final bgm = GlobalBgm.instance;
@@ -220,10 +220,13 @@ class _LearnSet6ScreenState extends State<LearnSet6Screen> {
           if (!_isInControllerArea(d.globalPosition, size)) _goNext();
         },
         child: Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.white,
           body: Stack(
             fit: StackFit.expand,
             children: [
+              // ✅ 항상 깔리는 흰 바닥 (로딩/전환 중에도 보이게)
+              const ColoredBox(color: Colors.white),
+
               if (ready) ...[
                 // 바닥: loop
                 Positioned.fill(
@@ -253,18 +256,27 @@ class _LearnSet6ScreenState extends State<LearnSet6Screen> {
                     ),
                   ),
                 ),
-              ] else
-                _loadingOrError(),
+              ] else ...[
+                // ✅ ready 전: 흰 화면 + 심플 로딩
+                const ColoredBox(color: Colors.white),
+                const Center(
+                  child: SizedBox(
+                    width: 36, height: 36,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  ),
+                ),
+              ],
 
-              // Windows 코덱 힌트
+              // Windows 코덱 힌트 (라이트 배경용 컬러)
               if (_error != null && Platform.isWindows)
-                const Positioned(
+                Positioned(
                   left: 16,
                   bottom: 24,
                   right: 16,
                   child: Text(
-                    '힌트: Windows 배포 시 MP4(H.264 + AAC) 권장.\n다른 코덱/컨테이너는 재생이 안 될 수 있어요.',
-                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                    '힌트: Windows 배포 시 MP4(H.264 + AAC) 권장.\n'
+                    '다른 코덱/컨테이너는 재생이 안 될 수 있어요.',
+                    style: TextStyle(color: Colors.black45, fontSize: 12),
                   ),
                 ),
 
@@ -288,10 +300,7 @@ class _LearnSet6ScreenState extends State<LearnSet6Screen> {
                           onPrev: _goPrev,
                           onNext: _goNext,
                           onPauseToggle: _togglePause,
-                          // 선택: 종료 시에도 스토리 BGM 정리해두면 안전
-                          onExit: () {
-                            GlobalBgm.instance.stopStory();
-                          },
+                          onExit: () => GlobalBgm.instance.stopStory(),
                         ),
                       ),
                     ),
@@ -304,30 +313,4 @@ class _LearnSet6ScreenState extends State<LearnSet6Screen> {
       ),
     );
   }
-
-  Widget _loadingOrError() => Container(
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Colors.black, Color(0xFF101016)],
-      ),
-    ),
-    child: Center(
-      child: _error == null
-          ? const CircularProgressIndicator()
-          : const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.error_outline, color: Colors.white70, size: 36),
-                SizedBox(height: 12),
-                Text(
-                  '학습 영상을 불러올 수 없어요.\n탭/Enter로 계속 진행합니다.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
-                ),
-              ],
-            ),
-    ),
-  );
 }

@@ -15,18 +15,16 @@ class FruitPlayStage extends StatefulWidget {
   });
 
   final LearnFruit fruit;
-  final bool isSlice; // false: whole, true: slice
-  final bool isLikeVideo; // false: curious, true: like(끝나면 like_loop)
+  final bool isSlice;        // false: whole, true: slice
+  final bool isLikeVideo;    // false: curious, true: like(끝나면 like_loop)
   final VoidCallback onCanvasTap;
 
   @override
-  State<FruitPlayStage> createState() => _FruitPlayStageState();
+  FruitPlayStageState createState() => FruitPlayStageState();
 }
 
-enum _ActiveLayer { curious, like, likeLoop }
-
-class _FruitPlayStageState extends State<FruitPlayStage> {
-  // ── 튜닝 포인트: 엔드 감지 여유(플랫폼별 position/duration 엣지 보정)
+class FruitPlayStageState extends State<FruitPlayStage> {
+  // ── 엔드 감지 여유(플랫폼별 position/duration 엣지 보정)
   static const Duration _kEndSlack = Duration(milliseconds: 160);
 
   final ShineEmphasisController _shine = ShineEmphasisController();
@@ -57,14 +55,44 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
   ImageProvider? _wholeImage;
   ImageProvider? _sliceImage;
 
-  // 🔸 initState에서는 precache를 호출하지 않는다!
+  // ---------- 외부에서 전환 직전에 호출: 즉시 정지→0초→해제 ----------
+  Future<void> haltAndRelease() async {
+    _cancelLikeTimer();
+    _removeLikeListener();
+
+    // 즉시 정지 & 0초로 이동
+    for (final c in <VideoPlayerController?>[_curiousC, _likeC, _likeLoopC]) {
+      try {
+        await c?.pause();
+        await c?.seekTo(Duration.zero);
+      } catch (_) {}
+    }
+
+    // 화면에서 더 이상 그리지 않도록 내려두기
+    _ready = false;
+    _active = _ActiveLayer.curious;
+    if (mounted) setState(() {});
+
+    // 완전 해제
+    await _disposeSet(_curiousC, _likeC, _likeLoopC);
+    _curiousC = null;
+    _likeC = null;
+    _likeLoopC = null;
+
+    // 다음 세트 준비물도 정리
+    await _disposeSet(_nextCuriousC, _nextLikeC, _nextLikeLoopC);
+    _nextCuriousC = null;
+    _nextLikeC = null;
+    _nextLikeLoopC = null;
+  }
+
+  // ---------- lifecycle ----------
   @override
   void initState() {
     super.initState();
     _replayShine();
   }
 
-  // 🔸 MediaQuery 의존이 가능한 시점에서 최초 프리캐시 + 세트 준비
   bool _bootstrapped = false;
   @override
   void didChangeDependencies() {
@@ -79,32 +107,29 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
   }
 
   @override
-  void didUpdateWidget(covariant FruitPlayStage old) {
-    super.didUpdateWidget(old);
+  void didUpdateWidget(covariant FruitPlayStage oldWidget) {
+    super.didUpdateWidget(oldWidget);
 
-    // ✅ 1) 과일 변경을 "먼저" 처리
-    if (old.fruit != widget.fruit) {
-      _swappingSet = true; // 전환 중에는 레이어 스위치 막기
-      _prepareSetAndImages(
-        widget.fruit,
-        jumpTo: widget.isLikeVideo ? _ActiveLayer.like : _ActiveLayer.curious,
-      ).whenComplete(() {
-        _swappingSet = false; // 스왑 완료 후 해제
-      });
-
-      // 과일이 바뀌는 프레임에 isLikeVideo 변경이 와도 무시(깜빡임 방지)
+    // ✅ 과일 변경: 즉시 종료 → 새로 준비 (잔프레임 원천 차단)
+    if (oldWidget.fruit != widget.fruit) {
+      _swappingSet = true;
+      unawaited(haltAndRelease().then((_) async {
+        await _prepareSetAndImages(
+          widget.fruit,
+          jumpTo: widget.isLikeVideo ? _ActiveLayer.like : _ActiveLayer.curious,
+        );
+        _swappingSet = false;
+      }));
       return;
     }
 
-    // ✅ 2) 같은 과일 내 curious ↔ like 전환만 처리 (스왑 중이면 무시)
-    if (!_swappingSet && old.isLikeVideo != widget.isLikeVideo && _ready) {
-      _switchActive(
-        widget.isLikeVideo ? _ActiveLayer.like : _ActiveLayer.curious,
-      );
+    // 같은 과일 내 curious ↔ like 전환만 처리 (스왑 중이면 무시)
+    if (!_swappingSet && oldWidget.isLikeVideo != widget.isLikeVideo && _ready) {
+      _switchActive(widget.isLikeVideo ? _ActiveLayer.like : _ActiveLayer.curious);
     }
 
     // 시각(whole/slice) 변경 시 샤인 재생
-    if (old.isSlice != widget.isSlice) {
+    if (oldWidget.isSlice != widget.isSlice) {
       _replayShine();
     }
   }
@@ -113,15 +138,15 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
   void dispose() {
     _cancelLikeTimer();
     _removeLikeListener();
-    _disposeSet(_curiousC, _likeC, _likeLoopC);
-    _disposeSet(_nextCuriousC, _nextLikeC, _nextLikeLoopC);
+    unawaited(_disposeSet(_curiousC, _likeC, _likeLoopC));
+    unawaited(_disposeSet(_nextCuriousC, _nextLikeC, _nextLikeLoopC));
     super.dispose();
   }
 
   // ───────── images: precache helpers ─────────
   Future<void> _precacheFruitImages(BuildContext ctx, LearnFruit f) async {
-    final bg = AssetImage(learnbackgroundPath(f));
-    final tray = AssetImage(learnTrayPath(f));
+    final bg    = AssetImage(learnbackgroundPath(f));
+    final tray  = AssetImage(learnTrayPath(f));
     final whole = AssetImage(learnNormalPath(f));
     final slice = AssetImage(learnHalfPath(f));
 
@@ -138,15 +163,24 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
     _sliceImage = slice;
   }
 
-  // ───────── videos: lifecycle ─────────
-  void _disposeSet(
+  // ───────── videos: lifecycle helpers ─────────
+  Future<void> _disposeSet(
     VideoPlayerController? a,
     VideoPlayerController? b,
     VideoPlayerController? c,
-  ) {
-    a?.dispose();
-    b?.dispose();
-    c?.dispose();
+  ) async {
+    Future<void> safeDispose(VideoPlayerController? x) async {
+      if (x == null) return;
+      try {
+        await x.dispose();
+      } catch (_) {}
+    }
+
+    await Future.wait([
+      safeDispose(a),
+      safeDispose(b),
+      safeDispose(c),
+    ]);
   }
 
   void _removeLikeListener() {
@@ -165,84 +199,54 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
     LearnFruit f, {
     required _ActiveLayer jumpTo,
   }) async {
-    // 1) 이미지 선로딩 (didChangeDependencies 이후라 MediaQuery OK)
+    // 1) 이미지 선로딩
     await _precacheFruitImages(context, f);
 
     // 2) 다음 비디오 컨트롤러 생성
-    _disposeSet(_nextCuriousC, _nextLikeC, _nextLikeLoopC);
-    _nextCuriousC = VideoPlayerController.asset(learnCuriousVideo(f));
-    _nextLikeC = VideoPlayerController.asset(learnLikeVideo(f));
-    _nextLikeLoopC = VideoPlayerController.asset(learnLikeLoopVideo(f));
+    await _disposeSet(_nextCuriousC, _nextLikeC, _nextLikeLoopC);
+    _nextCuriousC   = VideoPlayerController.asset(learnCuriousVideo(f))..setLooping(true);
+    _nextLikeC      = VideoPlayerController.asset(learnLikeVideo(f))..setLooping(false);
+    _nextLikeLoopC  = VideoPlayerController.asset(learnLikeLoopVideo(f))..setLooping(true);
 
-    // 3) 비디오 3종 initialize + 텍스처 워밍업
-    _initFuture =
-        Future.wait([
-          _nextCuriousC!.initialize(),
-          _nextLikeC!.initialize(),
-          _nextLikeLoopC!.initialize(),
-        ]).then((_) async {
-          if (!mounted) return;
+    // 3) initialize + 워밍업
+    _initFuture = Future.wait([
+      _nextCuriousC!.initialize(),
+      _nextLikeC!.initialize(),
+      _nextLikeLoopC!.initialize(),
+    ]).then((_) async {
+      if (!mounted) return;
 
-          _nextCuriousC!
-            ..setLooping(true)
-            ..play()
-            ..pause()
-            ..seekTo(Duration.zero);
-          _nextLikeC!
-            ..setLooping(false)
-            ..play()
-            ..pause()
-            ..seekTo(Duration.zero);
-          _nextLikeLoopC!
-            ..setLooping(true)
-            ..play()
-            ..pause()
-            ..seekTo(Duration.zero);
+      // 워밍업(첫 프레임/디코더 깨우기)
+      await _nextCuriousC!.play();   await _nextCuriousC!.pause();   await _nextCuriousC!.seekTo(Duration.zero);
+      await _nextLikeC!.play();      await _nextLikeC!.pause();      await _nextLikeC!.seekTo(Duration.zero);
+      await _nextLikeLoopC!.play();  await _nextLikeLoopC!.pause();  await _nextLikeLoopC!.seekTo(Duration.zero);
 
-          // 4) 기존 세트 보존 상태에서 스왑
-          final oldCur = _curiousC;
-          final oldLike = _likeC;
-          final oldLoop = _likeLoopC;
+      // 4) 새 세트 장착
+      _curiousC   = _nextCuriousC;   _nextCuriousC = null;
+      _likeC      = _nextLikeC;      _nextLikeC = null;
+      _likeLoopC  = _nextLikeLoopC;  _nextLikeLoopC = null;
 
-          _cancelLikeTimer();
-          _removeLikeListener();
+      _ready = true;
 
-          _curiousC = _nextCuriousC;
-          _likeC = _nextLikeC;
-          _likeLoopC = _nextLikeLoopC;
+      // like 종료 감지(리스너 + slack)
+      _likeEndListener = () {
+        final v = _likeC?.value;
+        if (v == null || !v.isInitialized) return;
 
-          _nextCuriousC = null;
-          _nextLikeC = null;
-          _nextLikeLoopC = null;
+        final dur = v.duration;
+        final pos = v.position;
+        final bool reachedEnd = dur > Duration.zero && (dur - pos) <= _kEndSlack;
 
-          _ready = true;
+        if (reachedEnd && _active == _ActiveLayer.like) {
+          _switchActive(_ActiveLayer.likeLoop);
+        }
+      };
+      _likeC!.addListener(_likeEndListener!);
 
-          // like 종료 감지: (1) 리스너 + slack, (2) 보조 타임아웃
-          _likeEndListener = () {
-            final v = _likeC?.value;
-            if (v == null || !v.isInitialized) return;
-
-            final dur = v.duration;
-            final pos = v.position;
-
-            // 일부 플랫폼에서 isPlaying 이 끝 직전에 true 유지되는 경우가 있어 pos 기준으로만 판정
-            final bool reachedEnd =
-                dur > Duration.zero && (dur - pos) <= _kEndSlack;
-
-            if (reachedEnd && _active == _ActiveLayer.like) {
-              _switchActive(_ActiveLayer.likeLoop);
-            }
-          };
-          _likeC!.addListener(_likeEndListener!);
-
-          // 5) 점프 레이어로 전환(재생 포함)
-          _switchActive(jumpTo);
-
-          // 6) 기존 세트 정리
-          _disposeSet(oldCur, oldLike, oldLoop);
-
-          if (mounted) setState(() {});
-        });
+      // 5) 목표 레이어로 전환(재생 포함)
+      _switchActive(jumpTo);
+      if (mounted) setState(() {});
+    });
 
     return _initFuture!;
   }
@@ -253,7 +257,6 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
     for (final c in all) {
       if (c == null) continue;
       if (c == target) {
-        // ✅ 타깃은 항상 0초부터 재생(플랫폼별 워밍업 상태 차단)
         if (c.value.position != Duration.zero) {
           await c.seekTo(Duration.zero);
         }
@@ -272,7 +275,6 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
     final likeV = _likeC?.value;
     if (likeV == null || !likeV.isInitialized) return;
 
-    // duration 기반 보조 타임아웃(여유 슬랙 포함)
     final dur = likeV.duration;
     if (dur <= Duration.zero) return;
 
@@ -280,7 +282,6 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
     final fireAfter = timeout.isNegative ? Duration.zero : timeout;
 
     _likeEndTimer = Timer(fireAfter, () {
-      // 여전히 like 레이어면 강제 전환
       if (!mounted) return;
       if (_active == _ActiveLayer.like) {
         _switchActive(_ActiveLayer.likeLoop);
@@ -303,8 +304,7 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
 
       case _ActiveLayer.like:
         await _playOnly(_likeC);
-        // ✅ like 시작 시 타임아웃 무장(윈도우 등 엔드 이벤트 부정확 보정)
-        _armLikeTimeout();
+        _armLikeTimeout(); // 종료 타임아웃 무장
         break;
 
       case _ActiveLayer.likeLoop:
@@ -332,9 +332,11 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
 
     Widget videoBox(VideoPlayerController? c) {
       if (c == null || !c.value.isInitialized) return const SizedBox.shrink();
+      // UniqueKey로 텍스처 재사용에 따른 드문 잔상 방지
       return FittedBox(
         fit: BoxFit.cover,
         child: SizedBox(
+          key: UniqueKey(),
           width: c.value.size.width,
           height: c.value.size.height,
           child: VideoPlayer(c),
@@ -359,11 +361,11 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
         children: [
           // BG
           if (ready)
-            Positioned.fill(
-              child: Image(image: _bgImage, fit: BoxFit.cover),
-            )
+            const Positioned.fill(child: ColoredBox(color: Colors.white)), // 배경 레이어가 실제 배경 이미지 위층을 덮지 않게 조정하고 싶다면 수정
+          if (ready)
+            Positioned.fill(child: Image(image: _bgImage, fit: BoxFit.cover))
           else
-            const Positioned.fill(child: ColoredBox(color: Colors.black)),
+            const Positioned.fill(child: ColoredBox(color: Colors.white)),
 
           if (!ready)
             const Center(child: CircularProgressIndicator())
@@ -403,9 +405,7 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
 
           // 트레이
           if (ready)
-            Positioned.fill(
-              child: Image(image: _trayImage!, fit: BoxFit.cover),
-            ),
+            Positioned.fill(child: Image(image: _trayImage!, fit: BoxFit.cover)),
 
           // 샤인 + 과일
           if (ready)
@@ -427,3 +427,5 @@ class _FruitPlayStageState extends State<FruitPlayStage> {
     );
   }
 }
+
+enum _ActiveLayer { curious, like, likeLoop }

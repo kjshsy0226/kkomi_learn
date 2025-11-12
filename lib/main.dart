@@ -7,49 +7,45 @@ import 'utils/window_fit.dart';
 import 'screens/splash_screen.dart';
 
 /// ─────────────────────────────────────────────────────────────────
-/// 데스크톱 앱 시작 흐름:
-///  - window_manager 초기화
-///  - 창 옵션 설정(제목/배경/센터링/풀스크린 해제)
-///  - **fitWindowToDisplay()**로 16:9 & 화면맞춤 사이즈 적용
-///  - 창 표시(show) + 포커스(focus)
-///  - (선택) 이후 F11 / Alt+Enter / ESC / macOS Ctrl+Cmd+F 핫키로
-///    풀스크린 토글/해제 지원
+/// 데스크톱 앱 시작 흐름(수정본):
+///  - **runApp(BaseApp)**을 먼저 호출해 첫 프레임을 즉시(흰 화면) 렌더링
+///  - 효과음 프리로드는 await 제거(백그라운드 진행 → 초기 검정 방지)
+///  - window_manager 초기화/표시는 그 다음에 진행
 /// ─────────────────────────────────────────────────────────────────
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1) 전역 효과음 미리 로드
-  await GlobalSfx.instance.preload('tap', 'audio/sfx/btn_tap.mp3');
+  // 1) 전역 효과음 미리 로드 (await 제거: 초기 렌더링 블로킹 방지)
+  GlobalSfx.instance.preload('tap', 'audio/sfx/btn_tap.mp3');
 
-  // 2) window_manager 초기화 (데스크톱 창 제어를 위해 필수)
+  // 2) 바로 앱 렌더링 → 첫 프레임을 흰 바탕으로 표시
+  runApp(const BaseApp());
+
+  // 3) window_manager 초기화 (데스크톱 창 제어)
   await windowManager.ensureInitialized();
 
-  // 3) 창 기본 옵션(최초 표시는 창 모드, 검은 배경, 중앙 정렬)
+  // 4) 창 기본 옵션(최초 표시는 창 모드, 흰 배경, 중앙 정렬)
   const opts = WindowOptions(
     title: '꼬미와 알록달록 채소 과일',
-    backgroundColor: Colors.black, // 투명은 OS/테마에 따라 아티팩트 발생 가능
+    backgroundColor: Colors.white, // 네이티브 바탕도 흰색
     center: true,
     fullScreen: false,
   );
 
-  // 4) 창을 실제로 보여주기 직전에 사이즈/위치 조정
+  // 5) 창을 실제로 보여주기 직전에 사이즈/위치 조정 + 표시
   windowManager.waitUntilReadyToShow(opts, () async {
-    // (핵심) 작업 영역에 맞춰 16:9로 리사이즈 + 중앙정렬
+    // 작업 영역에 맞춰 16:9로 리사이즈 + 중앙정렬
     await fitWindowToDisplay();
 
     // 창 표시 & 포커스
     await windowManager.show();
     await windowManager.focus();
 
-    // ※ 자동으로 풀스크린 진입시키고 싶다면 아래 주석 해제
+    // (선택) 자동 풀스크린 진입
     await Future.delayed(const Duration(milliseconds: 120));
-    // 풀스크린에서는 비율 고정(setAspectRatio)이 의미 없을 수 있어 0으로 해제
-    await windowManager.setAspectRatio(0);
+    await windowManager.setAspectRatio(0); // 풀스크린 전 비율 고정 해제
     await windowManager.setFullScreen(true);
   });
-
-  runApp(const BaseApp());
 }
 
 class BaseApp extends StatelessWidget {
@@ -63,10 +59,11 @@ class BaseApp extends StatelessWidget {
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
         useMaterial3: true,
+        // 전역 기본 바닥도 흰색으로 고정 (혹시 모를 검정 레이어 방지)
+        scaffoldBackgroundColor: Colors.white,
       ),
       // 전역 핫키(F11/Alt+Enter/ESC 등) 처리용 래퍼
-      builder: (context, child) =>
-          HotkeyGlobal(child: child ?? const SizedBox()),
+      builder: (context, child) => HotkeyGlobal(child: child ?? const SizedBox()),
       home: const SplashScreen(),
     );
   }

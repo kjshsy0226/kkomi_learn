@@ -8,6 +8,7 @@ import 'package:video_player/video_player.dart';
 
 import '../core/bgm_tracks.dart'; // ✅ 숏컷 + GlobalBgm re-export (ensureStory/stopStory)
 import '../widgets/game_controller_bar.dart';
+import '../utils/routes.dart'; // ✅ 흰 배경 보장 전환
 import 'learn_set3_screen.dart';
 import 'game_set1_screen.dart';
 
@@ -55,10 +56,8 @@ class _LearnSet4ScreenState extends State<LearnSet4Screen> {
       if (!mounted) return;
 
       // 디코더 워밍업
-      await _introC.play();
-      await _introC.pause();
-      await _loopC.play();
-      await _loopC.pause();
+      await _introC.play(); await _introC.pause();
+      await _loopC.play();  await _loopC.pause();
 
       setState(() => _ready = true);
 
@@ -84,9 +83,7 @@ class _LearnSet4ScreenState extends State<LearnSet4Screen> {
     try {
       await _loopC.seekTo(Duration.zero);
       await _loopC.play();
-      try {
-        await _introC.pause();
-      } catch (_) {}
+      try { await _introC.pause(); } catch (_) {}
       if (!mounted) return;
       setState(() {
         _showIntro = false;
@@ -113,12 +110,7 @@ class _LearnSet4ScreenState extends State<LearnSet4Screen> {
   void _goPrev() {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (c, a, b) => const LearnSet3Screen(),
-        transitionsBuilder: (c, a, b, child) =>
-            FadeTransition(opacity: a, child: child),
-        transitionDuration: const Duration(milliseconds: 300),
-      ),
+      fadeRouteWhite(const LearnSet3Screen()), // ✅ 흰 배경 보장 전환
     );
   }
 
@@ -128,12 +120,7 @@ class _LearnSet4ScreenState extends State<LearnSet4Screen> {
 
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (c, a, b) => const GameSet1Screen(),
-        transitionsBuilder: (c, a, b, child) =>
-            FadeTransition(opacity: a, child: child),
-        transitionDuration: const Duration(milliseconds: 300),
-      ),
+      fadeRouteWhite(const GameSet1Screen()), // ✅ 흰 배경 보장 전환
     );
   }
 
@@ -174,11 +161,9 @@ class _LearnSet4ScreenState extends State<LearnSet4Screen> {
     }
 
     if (active.value.isPlaying) {
-      // ▶ 재생중 → 둘 다 멈춤
       await Future.wait([active.pause(), bgm.pause()]);
       setState(() => _paused = true);
     } else {
-      // ❚❚ 멈춤 → 둘 다 재개
       await Future.wait([active.play(), bgm.resume()]);
       setState(() => _paused = false);
     }
@@ -214,10 +199,11 @@ class _LearnSet4ScreenState extends State<LearnSet4Screen> {
           if (!_isInControllerArea(d.globalPosition, size)) _goNext();
         },
         child: Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.white,
           body: Stack(
             fit: StackFit.expand,
             children: [
+              const ColoredBox(color: Colors.white), // ✅ 바닥 흰색
               if (ready) ...[
                 Positioned.fill(
                   child: FittedBox(
@@ -245,17 +231,25 @@ class _LearnSet4ScreenState extends State<LearnSet4Screen> {
                     ),
                   ),
                 ),
-              ] else
-                _loadingOrError(),
+              ] else ...[
+                // ✅ ready 전에는 흰 화면 + (선택) 얌전한 로딩
+                const ColoredBox(color: Colors.white),
+                const Center(
+                  child: SizedBox(
+                    width: 36, height: 36,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  ),
+                ),
+              ],
 
               if (_error != null && Platform.isWindows)
-                const Positioned(
+                Positioned(
                   left: 16,
                   bottom: 24,
                   right: 16,
                   child: Text(
                     '힌트: Windows 배포 시 MP4(H.264 + AAC) 권장.\n다른 코덱/컨테이너는 재생이 안 될 수 있어요.',
-                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                    style: TextStyle(color: Colors.black45, fontSize: 12), // 라이트 배경용
                   ),
                 ),
 
@@ -276,12 +270,9 @@ class _LearnSet4ScreenState extends State<LearnSet4Screen> {
                           isPaused: _paused,
                           onHome: _goHome,
                           onPrev: _goPrev,
-                          onNext: _goNext, // ▶ 게임 진입(스토리 BGM stop)
+                          onNext: _goNext,       // ▶ 게임 진입(스토리 BGM stop은 _goNext 내부)
                           onPauseToggle: _togglePause, // ❚❚ BGM도 함께 제어
-                          // 선택: 종료 시에도 스토리 BGM 정리해두면 안전
-                          onExit: () {
-                            GlobalBgm.instance.stopStory();
-                          },
+                          onExit: () => GlobalBgm.instance.stopStory(),
                         ),
                       ),
                     ),
@@ -294,30 +285,4 @@ class _LearnSet4ScreenState extends State<LearnSet4Screen> {
       ),
     );
   }
-
-  Widget _loadingOrError() => Container(
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Colors.black, Color(0xFF101016)],
-      ),
-    ),
-    child: Center(
-      child: _error == null
-          ? const CircularProgressIndicator()
-          : const Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.error_outline, color: Colors.white70, size: 36),
-                SizedBox(height: 12),
-                Text(
-                  '영상을 불러올 수 없어요.\n탭/Enter로 계속 진행합니다.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
-                ),
-              ],
-            ),
-    ),
-  );
 }

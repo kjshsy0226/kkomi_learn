@@ -23,7 +23,7 @@ extension BgmShortcuts on GlobalBgm {
     asset: kBgmIntroAsset,
     key: kBgmIntroKey,
     loop: loop,
-    volume: volume ?? 0.1,
+    volume: volume ?? 0.4,
     restart: restart,
   );
   Future<void> stopIntro() => stopIfKey(kBgmIntroKey);
@@ -38,7 +38,7 @@ extension BgmShortcuts on GlobalBgm {
     asset: kBgmStoryAsset,
     key: kBgmStoryKey,
     loop: loop,
-    volume: volume ?? 0.1,
+    volume: volume ?? 0.4,
     restart: restart,
   );
   Future<void> stopStory() => stopIfKey(kBgmStoryKey);
@@ -53,7 +53,7 @@ extension BgmShortcuts on GlobalBgm {
     asset: kBgmGameAsset,
     key: kBgmGameKey,
     loop: loop,
-    volume: volume ?? 0.1,
+    volume: volume ?? 0.4,
     restart: restart,
   );
   Future<void> stopGame() => stopIfKey(kBgmGameKey);

@@ -57,9 +57,9 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
 
     _introC =
         VideoPlayerController.asset(
-            widget.introVideoAsset,
-            videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
-          )
+          widget.introVideoAsset,
+          videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+        )
           ..setLooping(false)
           ..addListener(_onIntroTick);
 
@@ -85,11 +85,11 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
         await _bgm.setReleaseMode(ReleaseMode.loop);
 
         if (widget.bgmStartOnLoop) {
-          // 인트로에선 재생 안 함 (멘트 방해 X)
+          // 인트로에선 재생 안 함
           await _bgm.stop();
-          _bgmVol = 0.0; // 상태 초기화
+          _bgmVol = 0.0;
         } else {
-          // 인트로부터 아주 작게 재생
+          // 인트로부터 작게 재생
           final v = _clamp01(widget.bgmIntroVolume);
           await _setBgmVolume(v);
           await _bgm.play(AssetSource(widget.bgmAsset!));
@@ -161,7 +161,7 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
       }
     } else {
       // 인트로 동안 낮게 재생 중 → 루프에서 목표까지 페이드
-      final currentVol = _bgmVol; // 로컬 상태 사용
+      final currentVol = _bgmVol;
       if (fadeMs > 0) {
         _fadeVolume(from: currentVol, to: target, durationMs: fadeMs);
       } else {
@@ -243,7 +243,7 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
         autofocus: true,
         onKeyEvent: _onKeyEvent,
         child: Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.white,
           body: Stack(
             fit: StackFit.expand,
             children: [
@@ -277,15 +277,9 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
                   ),
                 ),
               ] else
-                // 프리로딩/에러
+                // ▼▼▼ 프리로딩/에러 구간을 "흰색"으로 통일 (검정 플래시 방지) ▼▼▼
                 Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.black, Color(0xFF101016)],
-                    ),
-                  ),
+                  color: Colors.white,
                   child: Center(
                     child: _error == null
                         ? const CircularProgressIndicator()
@@ -294,7 +288,7 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
                             children: [
                               const Icon(
                                 Icons.error_outline,
-                                color: Colors.white70,
+                                color: Colors.black54,
                                 size: 36,
                               ),
                               const SizedBox(height: 12),
@@ -302,7 +296,7 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
                                 widget.errorText,
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
-                                  color: Colors.white70,
+                                  color: Colors.black87,
                                   fontSize: 16,
                                 ),
                               ),
@@ -312,13 +306,13 @@ class _IntroLoopScreenState extends State<IntroLoopScreen> {
                 ),
 
               if (_error != null && Platform.isWindows)
-                const Positioned(
+                Positioned(
                   left: 16,
                   bottom: 24,
                   right: 16,
                   child: Text(
                     '힌트: Windows 배포 시 MP4(H.264 + AAC) 권장.\n다른 코덱/컨테이너는 재생이 안 될 수 있어요.',
-                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                    style: TextStyle(color: Colors.black45, fontSize: 12),
                   ),
                 ),
             ],

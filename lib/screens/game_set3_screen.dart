@@ -358,6 +358,8 @@ class _GameSet3ScreenState extends State<GameSet3Screen>
             height: canvasH,
             child: Stack(
               children: [
+                Positioned.fill(child: ColoredBox(color: Colors.white)),
+                
                 if (_standingCtrl.value.isInitialized)
                   Positioned.fill(
                     child: IgnorePointer(

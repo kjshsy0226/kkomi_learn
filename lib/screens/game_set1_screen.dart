@@ -44,18 +44,19 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
   bool _bgmPaused = false;
   bool _navigatingNext = false; // ✅ 화면 탭 중복-다음 이동 방지
 
+  // ✅ FruitPlayStage 내부 자원 제어를 위한 키
+  final GlobalKey<FruitPlayStageState> _playKey = GlobalKey<FruitPlayStageState>();
+
   LearnFruit get _fruit => fruits[_fruitIndex];
 
   @override
   void initState() {
     super.initState();
-    // ✅ 게임 BGM 보장 (중복 호출 안전)
     GlobalBgm.instance.ensureGame();
   }
 
   @override
   void dispose() {
-    // ✅ 이 화면을 완전히 떠날 때 안전 차단(홈/다른 플로우에선 별도로 stopGame 호출)
     GlobalBgm.instance.stopGame();
     super.dispose();
   }
@@ -88,8 +89,6 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
     if (_navigatingNext) return;
     _navigatingNext = true;
     _goNext().whenComplete(() {
-      // 같은 화면 내에서 다음 과일로만 이동했다면 플래그 해제
-      // (다른 화면으로 pushReplacement한 경우는 굳이 해제 안 해도 무방)
       if (mounted && _stage == _Stage.play) {
         _navigatingNext = false;
       }
@@ -99,7 +98,6 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
   // ⬅️ 이전
   Future<void> _goPrev() async {
     if (_stage == _Stage.select) {
-      // 선택 화면에서 이전 → LearnSet4 (게임 BGM 정리)
       GlobalBgm.instance.stopGame();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -113,14 +111,11 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
       return;
     }
 
-    // 플레이 화면에서 이전
     if (_fruitIndex > 0) {
-      setState(() {
-        _fruitIndex--;
-        _isSlice = false;
-        _isLike = false;
-      });
+      await _switchFruitCore(_fruitIndex - 1);
     } else {
+      // 플레이 → 선택
+      await _playKey.currentState?.haltAndRelease();
       setState(() {
         _stage = _Stage.select;
         _isSlice = false;
@@ -131,7 +126,6 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
 
   // 🏠 홈
   Future<void> _goHomeToSplash() async {
-    // ✅ 홈(스플래시)로 나갈 땐 게임 BGM 반드시 정리
     GlobalBgm.instance.stopGame();
     if (!mounted) return;
     Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
@@ -149,13 +143,9 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
     }
 
     if (_fruitIndex < fruits.length - 1) {
-      setState(() {
-        _fruitIndex++;
-        _isSlice = false;
-        _isLike = false;
-      });
+      await _switchFruitCore(_fruitIndex + 1);
     } else {
-      // 마지막 과일 완료 ➜ LearnSet5로 이동 (게임 BGM 정리)
+      await _playKey.currentState?.haltAndRelease();
       GlobalBgm.instance.stopGame();
       if (!mounted) return;
       await Navigator.of(context).pushReplacement(
@@ -167,6 +157,20 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
         ),
       );
     }
+  }
+
+  /// ✅ 근본 전환 로직:
+  /// 1) 현재 과일 재생 즉시 정지/0초/Dispose (haltAndRelease)
+  /// 2) 인덱스 교체 → 빌드 → 첫 프레임부터 새 영상만 노출
+  Future<void> _switchFruitCore(int nextIndex) async {
+    await _playKey.currentState?.haltAndRelease(); // 현재 세트 정지/해제
+    if (!mounted) return;
+    setState(() {
+      _fruitIndex = nextIndex;
+      _isSlice = false;
+      _isLike = false;
+    });
+    await WidgetsBinding.instance.endOfFrame; // 선택: 한 프레임 동기화
   }
 
   @override
@@ -205,6 +209,8 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
             height: canvasH,
             child: Stack(
               children: [
+                Positioned.fill(child: ColoredBox(color: Colors.white)),
+                
                 if (_stage == _Stage.select)
                   FruitSelectorBoard(
                     fruits: fruits,
@@ -215,11 +221,14 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
                   )
                 else
                   FruitPlayStage(
+                    key: _playKey,
                     fruit: _fruit,
                     isSlice: _isSlice,
                     isLikeVideo: _isLike,
-                    onCanvasTap: _onPlayTap, // ✅ 화면 탭으로 제어
+                    onCanvasTap: _onPlayTap,
                   ),
+
+                // 컨트롤러 바
                 Positioned(
                   top: controllerTopPx * scale,
                   right: controllerRightPx * scale,
@@ -230,7 +239,7 @@ class _GameSet1ScreenState extends State<GameSet1Screen> {
                       isPaused: _bgmPaused,
                       onHome: _goHomeToSplash,
                       onPrev: _goPrev,
-                      onNext: _goNext, // ✅ 마지막에서 LearnSet5로
+                      onNext: _goNext,
                       onPauseToggle: () async {
                         if (_bgmPaused) {
                           await GlobalBgm.instance.resume();

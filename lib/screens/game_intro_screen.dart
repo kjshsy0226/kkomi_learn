@@ -84,6 +84,9 @@ class _GameIntroScreenState extends State<GameIntroScreen> {
 
     return Stack(
       children: [
+        // ✅ 최하단에 흰색 깔아서 비디오 로딩/전환 순간 검정 플래시 방지
+        const Positioned.fill(child: ColoredBox(color: Colors.white)),
+
         // 1) 비디오 레이어
         Positioned.fill(
           child: IntroLoopScreen(
